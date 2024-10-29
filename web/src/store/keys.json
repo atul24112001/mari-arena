@@ -1,0 +1,5 @@
+{
+    "ATOM_AUTH_STATE": "auth-state",
+    "SELECTOR_AUTH_USER_STATE": "auth-user-state",
+    "SELECTOR_AUTH_IS_AUTHENTICATED_STATE": "auth-is-authenticated-state"
+}

@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String        @id @default(uuid())
+  razorpayClinetId String?
+  name             String?
+  email            String        @unique
+  image            String?
+  inrBalance       Int           @default(0)
+  solanaBalance    Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @default(now()) @updatedAt
+  Game             Game[]
+  Recharge         Recharge[]
+  Transaction      Transaction[]
+
+  @@map("users")
+}
+
+model GameType {
+  id       String   @id @default(uuid())
+  title    String
+  entry    Int
+  winner   Int
+  currency Currency
+  Game     Game[]
+
+  @@map("gametypes")
+}
+
+model Game {
+  id            String     @id @default(uuid())
+  status        GameStatus @default(ongoing)
+  entryFee      Int
+  winningAmount Int
+  type          GameType   @relation(fields: [gameTypeId], references: [id])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @default(now()) @updatedAt
+  users         User[]
+  gameTypeId    String
+
+  @@map("games")
+}
+
+model Recharge {
+  id              String         @id @default(uuid())
+  razorpayOrderId String         @unique
+  status          RechargeStatus @default(pending)
+  amount          Int
+  user            User           @relation(fields: [userId], references: [id])
+  userId          String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @default(now()) @updatedAt
+
+  @@map("recharges")
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  amount    Int
+  signature String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  userId    String
+
+  @@map("transactions")
+}
+
+enum RechargeStatus {
+  pending
+  success
+  failed
+}
+
+enum GameStatus {
+  ongoing
+  completed
+}
+
+enum Currency {
+  INR
+  SOL
+}
