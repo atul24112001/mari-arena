@@ -25,11 +25,13 @@ const Physics = (
   const bird: Matter.Body = entities.bird.body;
   entities.bird.fly = false;
   input
-    .filter(
-      ({ name, payload }: any) =>
+    .filter(({ name, payload }: any) => {
+      // console.log({ code: payload?.code });
+      return (
         name === "onClick" ||
         (name == "onKeyPress" && AllowedKeyCode[payload.code])
-    )
+      );
+    })
     .forEach((e) => {
       entities.bird.fly = true;
       Matter.Body.applyForce(bird, bird.position, { x: 0.0, y: -0.08 });
@@ -68,48 +70,18 @@ const Physics = (
               Constants.PIPE_GAP_SIZE,
             y: 0,
           });
-
-          //   entities[`pipe${i}Top`].body.size = [
-          //     Constants.PIPE_WIDTH,
-          //     newPipeTopHeight,
-          //   ];
-          //   entities[`pipe${i}Bottom`].body.size = [
-          //     Constants.PIPE_WIDTH,
-          //     newPipeBottomHeight,
-          //   ];
-
-          //   Matter.World.remove(engine.world, topPipe.body);
-          //   Matter.World.remove(engine.world, bottomPipe.body);
-          //   const [newPipeTopHeight, newPipeBottomHeight] = generatePipe();
-
-          //   const newPipeTop = Matter.Bodies.rectangle(
-          //     lastBody.position.x + Constants.PIPE_GAP_SIZE,
-          //     topPipe.body.position.y,
-          //     Constants.PIPE_WIDTH,
-          //     newPipeTopHeight
-          //   );
-          //   const newPipeBottom = Matter.Bodies.rectangle(
-          //     lastBody.position.x + Constants.PIPE_GAP_SIZE,
-          //     bottomPipe.body.position.y,
-          //     Constants.PIPE_WIDTH,
-          //     newPipeBottomHeight
-          //   );
-
-          //   entities[`pipe${i}Bottom`] = {
-          //     body: newPipeBottom,
-          //     color: "green",
-          //     size: [Constants.PIPE_WIDTH, newPipeBottomHeight],
-          //     renderer: Wall,
-          //   };
-          //   Matter.World.add(engine.world, [newPipeTop, newPipeBottom]);
         }
       }
     }
   }
 
-  if (entities.bird.body.position.y > Constants.MAX_HEIGHT - 225) {
-    entities.bird.body.position.y = Constants.MAX_HEIGHT - 225;
-  } else if (entities.bird.body.position.y < 25) {
+  if (
+    entities.bird.body.position.y < 25 ||
+    entities.bird.body.position.x < 70 ||
+    entities.bird.body.position.y >
+      Constants.MAX_HEIGHT - Constants.FLOOR_HEIGHT ||
+    entities.bird.body.position.x > Constants.MAX_WIDTH
+  ) {
     dispatch({ type: "game-over" });
   }
 

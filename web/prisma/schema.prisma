@@ -25,13 +25,15 @@ model User {
 }
 
 model GameType {
-  id       String   @id @default(uuid())
-  title    String
-  entry    Int
-  winner   Int
-  currency Currency
-  Game     Game[]
+  id        String   @id @default(uuid())
+  title     String
+  entry     Int
+  winner    Int
+  maxPlayer Int
+  currency  Currency
+  Game      Game[]
 
+  @@unique([title, currency])
   @@map("gametypes")
 }
 

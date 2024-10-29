@@ -8,6 +8,7 @@ export function Modal({
   open,
   children,
   className,
+  error,
 }: PropsWithChildren<Props>) {
   return (
     <div
@@ -22,7 +23,14 @@ export function Modal({
             <X size={20} />
           </IconButton>
         </div>
-        <div className={className}>{children}</div>
+        <div className={className}>
+          {error && (
+            <div className="mb-3 text-sm font-bold bg-red-100 text-red-500 rounded-lg px-4 py-1">
+              {error}
+            </div>
+          )}
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -33,4 +41,5 @@ type Props = {
   open: boolean;
   onClose: () => void;
   className?: string;
+  error: string;
 };

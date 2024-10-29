@@ -76,9 +76,15 @@ func verifyUser(w http.ResponseWriter, r *http.Request) {
 	// 	HttpOnly: true,
 	// 	SameSite: http.SameSiteLaxMode,
 	// })
-	lib.WriteJson(w, 200, map[string]interface{}{
+	response := map[string]interface{}{
 		"message": "success",
 		"data":    []model.User{user},
 		"token":   tokenString,
-	})
+	}
+
+	if user.Email == lib.AdminPublicKey {
+		response["isAdmin"] = true
+	}
+
+	lib.WriteJson(w, 200, response)
 }

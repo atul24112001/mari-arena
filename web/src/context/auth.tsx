@@ -22,18 +22,22 @@ type AuthContextType = {
   user: User | null;
   setUser: (data: User | null) => void;
   apiClient: AxiosInstance;
+  isAdmin: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   setUser: () => {},
   apiClient: axios,
+  isAdmin: false,
 });
 
-async function verifyUser(data: {
-  name: string;
-  identifier: string;
-}): Promise<{ data: [User]; message: string; token: string }> {
+async function verifyUser(data: { name: string; identifier: string }): Promise<{
+  data: [User];
+  message: string;
+  token: string;
+  isAdmin?: boolean;
+}> {
   const response = await axios.post(
     `${process.env.NEXT_PUBLIC_API_URL}/api/user`,
     data
@@ -44,6 +48,7 @@ async function verifyUser(data: {
 export const AuthContextProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<null | User>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const wallet = useWallet();
 
@@ -80,6 +85,9 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
             onSuccess: (data) => {
               setUser(data.data[0]);
               setToken(data.token);
+              if (data.isAdmin) {
+                setIsAdmin(true);
+              }
             },
           }
         );
@@ -91,7 +99,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
     }
   }, [wallet.connected]);
   return (
-    <AuthContext.Provider value={{ user, setUser, apiClient }}>
+    <AuthContext.Provider value={{ user, setUser, apiClient, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

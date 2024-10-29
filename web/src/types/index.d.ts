@@ -7,3 +7,11 @@ type GameEngineRef = {
   swap: (newEntities: Entities | Promise<Entities>) => Promise<void>;
   dispatch: (e: any) => void;
 };
+
+type Params = { [key: string]: string };
+type SearchParams = { [key: string]: string | string[] | undefined };
+
+type ServerProps = {
+  params: Params;
+  searchParams: SearchParams;
+};

@@ -11,7 +11,7 @@ import { RecoilRoot } from "recoil";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthContextProvider } from "@/context/auth";
 
-require("@solana/wallet-adapter-react-ui/styles.css");
+import "@solana/wallet-adapter-react-ui/styles.css";
 
 const queryClient = new QueryClient();
 

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	gameManager "flappy-bird-server/game-manager"
+	gametype "flappy-bird-server/game-type"
 	"flappy-bird-server/lib"
 	"flappy-bird-server/transaction"
 	"flappy-bird-server/user"
@@ -18,11 +19,7 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		log.Println(r.Host)
-		if r.Host != "localhost:8080" && r.Host != "localhost:3000" {
-			return false
-		}
-		return true
+		return r.Host == "localhost:3000"
 	},
 }
 
@@ -91,6 +88,7 @@ func main() {
 	http.HandleFunc("/ws", handleWebSocket)
 	http.Handle("/api/user", httpCorsMiddleware(http.HandlerFunc(user.Handler)))
 	http.Handle("/api/transaction", httpCorsMiddleware(http.HandlerFunc(transaction.Handler)))
+	http.Handle("/api/game-types", httpCorsMiddleware(http.HandlerFunc(gametype.Handler)))
 
 	fmt.Println("WebSocket server listening on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {

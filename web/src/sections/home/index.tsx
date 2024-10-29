@@ -132,12 +132,8 @@ export default function ClientHomePage() {
         onClose={toggleRechargeModal}
         open={openRechargeModal}
         className="mt-2"
+        error={error}
       >
-        {error && (
-          <div className="mb-3 text-sm font-bold bg-red-100 text-red-500 rounded-lg px-4 py-1">
-            {error}
-          </div>
-        )}
         <div className="mb-3 text-sm font-bold bg-gray-200 text-gray-500 rounded-lg px-4 py-1">
           Note: In some cases it takes sometime for a transaction to get
           distributed all over blockchain so verification might fail. You have
