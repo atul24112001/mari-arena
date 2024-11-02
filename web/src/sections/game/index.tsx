@@ -27,21 +27,22 @@ type Game = {
 
 export default function GameClient({ gameType }: Props) {
   const gameEngine = useRef<GameEngineRef>(null);
-  const { user, socket, sendMessage } = useAuth();
+  const { user, socket, setUser, sendMessage } = useAuth();
   const router = useRouter();
-  const walletModal = useWalletModal();
 
+  const [entities, setEntities] = useState<Entities>({});
   const [game, setGame] = useState<Game | null>(null);
   const [gameStartingIn, setGameStartingIn] = useState(0);
-  const [entities, setEntities] = useState<Entities>({});
-  const [running, setRunning] = useState(false);
-  const [gameOver, setGameOver] = useState(false);
   const [engine] = useState<Matter.Engine>(
     Matter.Engine.create({ enableSleeping: false })
   );
 
+  const [running, setRunning] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+
   useEffect(() => {
-    if (socket) {
+    if (socket && confirmed) {
       sendMessage("join-random-game", {
         userId: user?.id,
         gameTypeId: gameType.id,
@@ -68,10 +69,23 @@ export default function GameClient({ gameType }: Props) {
           toast(data?.message || "Something went wrong", {
             duration: 2000,
           });
+        } else if (type === "winner") {
+          toast("You won!", {
+            duration: 2000,
+          });
+          setUser((prev) => {
+            if (!prev) {
+              return prev;
+            }
+            return {
+              ...prev,
+              solanaBalance: data.solanaBalance,
+            };
+          });
         }
       };
     }
-  }, [socket]);
+  }, [socket, confirmed]);
 
   const notEligibleToPlay = useMemo(() => {
     if (!user) {

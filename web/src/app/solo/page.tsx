@@ -191,7 +191,7 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            <div className="w-[90%]">
+            <div className="w-[90%] max-w-96">
               <div>
                 <h3 className="font-bold mb-1 text-lg text-yellow-100">
                   Rules

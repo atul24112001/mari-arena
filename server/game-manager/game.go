@@ -12,7 +12,7 @@ type Game struct {
 	WinnerPrice      int
 	Entry            int
 	Users            map[string]bool
-	IsStarted        bool
+	Status           string
 	ScoreBoard       map[string]Score
 }
 

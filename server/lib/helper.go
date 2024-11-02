@@ -1,12 +1,15 @@
 package lib
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"reflect"
 )
 
@@ -105,4 +108,28 @@ func ErrorJsonWithCode(w http.ResponseWriter, err error, status ...int) error {
 	payload.Message = err.Error()
 
 	return WriteJson(w, statusCode, payload)
+}
+
+func ErrorLogger(newLine string) {
+	file, err := os.OpenFile("errors.txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(newLine)
+	if err != nil {
+		fmt.Println("Error writing to file:", err)
+		return
+	}
+}
+
+func HashString(text string) string {
+	hash := sha256.New()
+	finalString := os.Getenv("SECRET") + text
+	hash.Write([]byte(finalString))
+	hashedBytes := hash.Sum(nil)
+	hashString := hex.EncodeToString(hashedBytes)
+	return hashString
 }

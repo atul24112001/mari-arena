@@ -62,21 +62,28 @@ func (gameManger *GameManager) AddUser(userId string, publicKey string, ws *webs
 	}
 }
 
-func (gameManger *GameManager) CreateGame(maxUserCount int, winnerPrice int, entry int) (*Game, error) {
-	gameId, err := uuid.NewRandom()
+func (gameManger *GameManager) CreateGame(maxUserCount int, winnerPrice int, entry int, gameTypeId string) (*Game, error) {
+	newGameId, err := uuid.NewUUID()
+	var newGame Game
+	if err != nil {
+		return &Game{}, errors.New("Something went wrong while creating game id")
+	}
+
+	err = lib.Pool.QueryRow(context.Background(), `INSERT INTO public.games (id, "entryFee", "winningAmount", "gameTypeId", "maxPlayer") VALUES ($1, $2, $3, $4, $5) RETURNING (id, status,  "entryFee", "winningAmount", "maxPlayer")`, newGameId.String(), entry, winnerPrice, gameTypeId, maxUserCount).Scan(&newGame.Id, &newGame.Status, &newGame.Entry, &newGame.WinnerPrice, &newGame.MaxUserCount)
+
 	if err != nil {
 		return &Game{}, errors.New("Something went wrong while creating game")
 	}
 
 	return &Game{
-		Id:               gameId.String(),
+		Id:               newGame.Id,
 		Users:            make(map[string]bool),
-		IsStarted:        false,
+		Status:           newGame.Status,
 		MaxUserCount:     maxUserCount,
 		CurrentUserCount: 0,
 		ScoreBoard:       make(map[string]Score),
-		WinnerPrice:      winnerPrice,
-		Entry:            entry,
+		WinnerPrice:      newGame.WinnerPrice,
+		Entry:            newGame.Entry,
 	}, nil
 }
 
@@ -91,6 +98,7 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 			var gameType model.GameType
 			err := lib.Pool.QueryRow(context.Background(), `SELECT id, title, currency, "maxPlayer", winner, entry FROM public.gametypes WHERE id = $1`, gameTypeId).Scan(&gameType.Id, &gameType.Title, &gameType.Currency, &gameType.MaxPlayer, &gameType.Winner, &gameType.Entry)
 			if err != nil {
+				log.Println(err.Error())
 				targetUser.SendMessage("error", map[string]interface{}{
 					"message": "Invalid game type",
 				})
@@ -103,8 +111,9 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 			cacheGameTypeMap = gameTypeMap[gameTypeId]
 		}
 
-		_newGame, err := gameManger.CreateGame(cacheGameTypeMap.GameType.MaxPlayer, cacheGameTypeMap.GameType.Winner, cacheGameTypeMap.GameType.Entry)
+		_newGame, err := gameManger.CreateGame(cacheGameTypeMap.GameType.MaxPlayer, cacheGameTypeMap.GameType.Winner, cacheGameTypeMap.GameType.Entry, cacheGameTypeMap.GameType.Id)
 		if err != nil {
+			log.Println(err.Error())
 			targetUser.SendMessage("error", map[string]interface{}{
 				"message": "Error while creating new game",
 			})
@@ -119,14 +128,59 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 	}
 
 	newGame := newGameMap.Game
-	keys := make([]string, 0, len(newGame.Users))
-	for k := range newGame.Users {
-		keys = append(keys, k)
+
+	if newGame.CurrentUserCount == newGame.MaxUserCount {
+		log.Println("Game is full")
+		return
 	}
 
+	if newGame.Users[userId] {
+		return
+	}
+
+	var currentBalance int
+	err := lib.Pool.QueryRow(context.Background(), `SELECT "solanaBalance"  FROM public.users WHERE id = $1`, userId).Scan(&currentBalance)
+
+	if err != nil {
+		log.Println(err.Error())
+		targetUser.SendMessage("error", map[string]interface{}{
+			"message": "Something went wrong while fetching current balance",
+		})
+		return
+	}
+
+	if currentBalance < newGame.Entry {
+		log.Println(err.Error())
+		targetUser.SendMessage("error", map[string]interface{}{
+			"message": "Insufficient balance",
+		})
+		return
+	}
+
+	participantId, err := uuid.NewUUID()
+	if err != nil {
+		log.Println(err.Error())
+		targetUser.SendMessage("error", map[string]interface{}{
+			"message": "Something went wrong",
+		})
+		return
+	}
+
+	_, err = lib.Pool.Exec(context.Background(), "INSERT INTO public.participants (userId, gameId) VALUES ($1, $2)", participantId, newGame.Id)
+
+	if err != nil {
+		log.Println(err.Error())
+		targetUser.SendMessage("error", map[string]interface{}{
+			"message": "Something went wrong while adding participant in db",
+		})
+		return
+	}
+
+	keys := make([]string, 0, newGame.MaxUserCount)
 	for k := range newGame.Users {
 		participants, exist := gameManger.GetUser(k)
 		if exist {
+			keys = append(keys, k)
 			participants.SendMessage("new-user", map[string]interface{}{
 				"userId": userId,
 				"gameId": newGame.Id,
@@ -149,8 +203,7 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 	gameManger.NewGame[gameTypeId] = newGameMap
 
 	if newGame.CurrentUserCount == newGame.MaxUserCount {
-		keys = append(keys, userId)
-		newGame.IsStarted = true
+		newGame.Status = "ongoing"
 		gameManger.StartedGames[newGame.Id] = newGame
 		delete(gameManger.NewGame, gameTypeId)
 
@@ -163,7 +216,6 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 			}
 		}
 
-		lib.Pool.Exec(context.Background(), `INSERT INTO public.games (id, status, "winningAmount", type, gameTypeId, users)`, newGameMap.GameType.Entry)
 		query := fmt.Sprintf(`UPDATE public.users SET "solanaBalance" = "solanaBalance" - $1 WHERE id IN (%s) AND "solanaBalance" >= $1`, ids)
 		_, err := lib.Pool.Exec(context.Background(), query, newGameMap.GameType.Entry)
 
@@ -184,10 +236,24 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 
 func (gameManger *GameManager) DeleteUser(conn *websocket.Conn) {
 	newUsers := make(map[string]User)
+
+	var targetUserId = ""
+
 	for key, user := range gameManger.Users {
 		if user.Ws != conn {
 			log.Println("Deleting", key)
 			newUsers[key] = user
+		} else {
+			targetUserId = key
+		}
+	}
+
+	if targetUserId != "" {
+		for gameId, g := range gameManger.StartedGames {
+			_, exist := g.Users[targetUserId]
+			if exist {
+				gameManger.GameOver(gameId, targetUserId)
+			}
 		}
 	}
 	gameManger.Users = newUsers
@@ -223,7 +289,6 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 	for k, _ := range targetGame.Users {
 		if targetGame.ScoreBoard[k].IsAlive {
 			alivePlayers += 1
-
 		}
 	}
 
@@ -236,14 +301,27 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 	}
 
 	if alivePlayers == 0 && winnerId != "" {
-		winner, _ := gameManager.GetUser(winnerId)
-		winner.SendMessage("winner", map[string]interface{}{})
-		_, err := lib.Pool.Exec(context.Background(), "UPDATE public.games SET (status, winnerEmail) VALUES ($2, $3) WHERE id = $1", gameId, "completed", winner.Id)
+		var newBalance int
+		winner, exist := gameManager.GetUser(winnerId)
+
+		_, err := lib.Pool.Exec(context.Background(), "UPDATE public.games SET (status, winnerEmail) VALUES ($2, $3) WHERE id = $1", gameId, "completed", winnerId)
 		if err == nil {
-			_, err := lib.Pool.Exec(context.Background(), `UPDATE public.users SET  "solanaBalance" = "solanaBalance"  + $2 WHERE id = $1`, userId, targetGame.WinnerPrice)
+			err := lib.Pool.QueryRow(context.Background(), `UPDATE public.users SET  "solanaBalance" = "solanaBalance"  + $2 WHERE id = $1 RETURNING "solanaBalance"`, winnerId, targetGame.WinnerPrice).Scan(&newBalance)
 			if err == nil {
 				gameManager.DeleteGame(gameId)
+			} else {
+				newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
+				lib.ErrorLogger(newLine)
 			}
+		} else {
+			newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s\n", gameId, "completed")
+			lib.ErrorLogger(newLine)
+		}
+
+		if exist {
+			winner.SendMessage("winner", map[string]interface{}{
+				"solanaBalance": newBalance,
+			})
 		}
 	}
 }

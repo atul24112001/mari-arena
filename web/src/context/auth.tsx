@@ -10,7 +10,9 @@ import axios, {
   HeadersDefaults,
 } from "axios";
 import {
+  Dispatch,
   PropsWithChildren,
+  SetStateAction,
   createContext,
   useCallback,
   useContext,
@@ -21,7 +23,7 @@ import {
 
 type AuthContextType = {
   user: User | null;
-  setUser: (data: User | null) => void;
+  setUser: Dispatch<SetStateAction<User | null>>;
   apiClient: AxiosInstance;
   isAdmin: boolean;
   sendMessage: (type: string, data: any) => void;
@@ -51,17 +53,7 @@ async function verifyUser(data: { name: string; identifier: string }): Promise<{
 }
 
 export const AuthContextProvider = ({ children }: PropsWithChildren) => {
-  const [user, setUser] = useState<null | User>({
-    id: "bd189f2a-5513-4a5a-8528-e157b14ad359",
-    name: "CVdndsAGyNj8BvLhtrQBLMtrwEgy53ACXFQmQMfH2MFQ",
-    email: "CVdndsAGyNj8BvLhtrQBLMtrwEgy53ACXFQmQMfH2MFQ",
-    inrBalance: 0,
-    solanaBalance: 370225005,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    image: null,
-    razorpayClinetId: null,
-  });
+  const [user, setUser] = useState<null | User>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [socket, setSocket] = useState<WebSocket | null>(null);
