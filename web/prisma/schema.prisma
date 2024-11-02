@@ -12,6 +12,7 @@ model User {
   razorpayClinetId String?
   name             String?
   email            String        @unique
+  password         String?
   image            String?
   inrBalance       Int           @default(0)
   solanaBalance    Int           @default(0)
@@ -20,6 +21,7 @@ model User {
   Game             Game[]
   Recharge         Recharge[]
   Transaction      Transaction[]
+  Participant      Participant[]
 
   @@map("users")
 }
@@ -38,17 +40,31 @@ model GameType {
 }
 
 model Game {
-  id            String     @id @default(uuid())
-  status        GameStatus @default(ongoing)
+  id            String        @id @default(uuid())
+  status        GameStatus    @default(stagning)
   entryFee      Int
   winningAmount Int
-  type          GameType   @relation(fields: [gameTypeId], references: [id])
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @default(now()) @updatedAt
-  users         User[]
+  winnerId      String?
+  type          GameType      @relation(fields: [gameTypeId], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
   gameTypeId    String
+  User          User?         @relation(fields: [userId], references: [id])
+  userId        String?
+  Participant   Participant[]
 
   @@map("games")
+}
+
+model Participant {
+  id     String @id @default(uuid())
+  game   Game   @relation(fields: [gameId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  gameId String
+  userId String
+
+  @@unique([gameId, userId])
+  @@map("participants")
 }
 
 model Recharge {
@@ -83,6 +99,7 @@ enum RechargeStatus {
 }
 
 enum GameStatus {
+  stagning
   ongoing
   completed
 }

@@ -6,5 +6,5 @@ type GameType struct {
 	Entry     int    `json:"entry"`
 	Winner    int    `json:"winner"`
 	Currency  string `json:"currency"`
-	MaxPlayer string `json:"maxPlayer"`
+	MaxPlayer int    `json:"maxPlayer"`
 }

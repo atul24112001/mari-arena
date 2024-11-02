@@ -19,7 +19,7 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return r.Host == "localhost:3000"
+		return r.Header.Get("origin") == "http://localhost:3000"
 	},
 }
 
@@ -55,11 +55,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		switch messageType {
 		case "add-user":
-			gameManager.GetInstance().AddUser(messageData["userId"].(string), conn)
+			gameManager.GetInstance().AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
 		case "join-random-game":
-			gameManager.GetInstance().JoinGame(messageData["userId"].(string))
+			gameManager.GetInstance().JoinGame(messageData["userId"].(string), messageData["gameTypeId"].(string))
 		case "update-board":
 			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), messageData["userId"].(string))
+		case "game-over":
+			gameManager.GetInstance().GameOver(messageData["gameId"].(string), messageData["userId"].(string))
 		}
 	}
 }

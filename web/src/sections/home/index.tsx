@@ -1,6 +1,17 @@
 "use client";
 
 import { IconButton, Modal } from "@/components/helper";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Meteors } from "@/components/ui/meteors";
+import { StarsBackground } from "@/components/ui/star-background";
 import { useAuth } from "@/context/auth";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
@@ -10,75 +21,34 @@ import {
   SystemProgram,
   Transaction,
 } from "@solana/web3.js";
-import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
 import { LogOut, Plus } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
+import { toast } from "sonner";
 
 export default function ClientHomePage() {
   const rechargeAmountRef = useRef<HTMLInputElement>(null);
 
   const [openRechargeModal, setOpenRechargeModal] = useState(false);
-  const { user, setUser, apiClient } = useAuth();
+  const { user, apiClient } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [signature, setSignature] = useState<null | string>(null);
-
-  const { mutate, isPending } = useMutation({
-    mutationFn: async (signature: string) => {
-      const { data } = await apiClient.post(`/api/transaction`, {
-        signature,
-      });
-      return data;
-    },
-    mutationKey: ["transaction"],
-  });
 
   const wallet = useWallet();
   const walletModal = useWalletModal();
   const { connection } = useConnection();
 
-  const verifySignature = (sign: string) => {
-    setLoading(true);
-    if (!signature) {
-      setSignature(sign);
-    }
-    const retry = parseInt(localStorage.getItem("verification-retry") || "0");
-    setTimeout(() => {
-      mutate(sign, {
-        onError: (e) => {
-          if (retry < 5) {
-            localStorage.setItem("verification-retry", `${retry + 1}`);
-            verifySignature(sign);
-          } else {
-            setError(e.message);
-            setLoading(false);
-          }
-        },
-        onSuccess: (data) => {
-          setUser(data.data[0]);
-          toggleRechargeModal();
-          setSignature(null);
-          setLoading(false);
-        },
-        onSettled: () => {
-          localStorage.removeItem("verification-retry");
-        },
-      });
-    }, 2000);
-  };
-
   const addBalanceHandler = async () => {
     try {
-      setLoading(true);
       const amount = parseFloat(rechargeAmountRef.current?.value || "");
       if (!user || isNaN(amount) || !wallet.publicKey || !wallet.connected) {
-        console.log("Something went wrong");
+        setError(
+          isNaN(amount) ? "Please enter valid amount" : "Please connect wallet"
+        );
         return;
       }
 
+      setLoading(true);
       const to = process.env.NEXT_PUBLIC_KEY as string;
-      console.log({ amount, to, fromPubkey: wallet.publicKey });
       const transaction = new Transaction();
       transaction.add(
         SystemProgram.transfer({
@@ -88,8 +58,15 @@ export default function ClientHomePage() {
         })
       );
 
-      const signature = await wallet.sendTransaction(transaction, connection);
-      verifySignature(signature);
+      await wallet.sendTransaction(transaction, connection);
+      toggleRechargeModal();
+      setLoading(false);
+      toast("Solana added successfully", {
+        description: "Balance will be updated shortly",
+        action: (
+          <IconButton onClick={window.location.reload}>Refresh</IconButton>
+        ),
+      });
     } catch (error) {
       if (error instanceof Error) {
         setLoading(false);
@@ -107,13 +84,52 @@ export default function ClientHomePage() {
     <>
       {wallet.connected ? (
         <div className="flex justify-between items-center  gap-2">
-          <div className="text-black">
+          <div className="text-secondary">
             {(user?.solanaBalance || 0) / 10 ** 9} SOL
           </div>
-          <IconButton onClick={toggleRechargeModal}>
-            <Plus size={18} />
-            <span className="hidden md:inline-block">Add Sol</span>
-          </IconButton>
+          <Dialog open={openRechargeModal} onOpenChange={toggleRechargeModal}>
+            <IconButton onClick={toggleRechargeModal}>
+              <Plus size={18} />
+              <span className="hidden md:inline-block">Add Sol</span>
+            </IconButton>
+            <DialogContent className=" bg-primary text-primary-foreground border-0 w-[90%] md:w-[60%] lg:w-[40%]">
+              <DialogHeader>
+                <DialogTitle className="">Add Solana</DialogTitle>
+
+                <DialogDescription className="">
+                  Note: In some cases it takes sometime for a transaction to get
+                  distributed all over blockchain so verification might fail.
+                  You have to retry the verification in those case.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div>
+                <input
+                  ref={rechargeAmountRef}
+                  placeholder="Amount (2 SOL)"
+                  type="number"
+                  className="w-full  rounded-lg  bg-[#7c7c7c1f] px-4 py-2  active:outline-none focus:outline-none"
+                />
+                {error && (
+                  <div className=" text-sm font-bold px-2 text-red-500 rounded-lg py-1">
+                    {error}
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <IconButton color="error" onClick={toggleRechargeModal}>
+                  Cancel
+                </IconButton>
+                <IconButton
+                  loading={loading}
+                  disabled={loading}
+                  onClick={addBalanceHandler}
+                >
+                  Submit
+                </IconButton>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <IconButton color="error" onClick={wallet.disconnect}>
             <LogOut size={20} />
             <span className="hidden md:inline-block">Disconnect</span>
@@ -127,47 +143,6 @@ export default function ClientHomePage() {
           Connect
         </button>
       )}
-      <Modal
-        title="Add Solana"
-        onClose={toggleRechargeModal}
-        open={openRechargeModal}
-        className="mt-2"
-        error={error}
-      >
-        <div className="mb-3 text-sm font-bold bg-gray-200 text-gray-500 rounded-lg px-4 py-1">
-          Note: In some cases it takes sometime for a transaction to get
-          distributed all over blockchain so verification might fail. You have
-          to retry the verification in those case.
-        </div>
-        <input
-          ref={rechargeAmountRef}
-          placeholder="Amount (2 SOL)"
-          type="number"
-          className="w-full  rounded-lg  bg-[#2b924520] px-4 py-2 my-2 active:outline-none focus:outline-none"
-        />
-        <div className="flex justify-end items-center gap-3">
-          <IconButton color="error" onClick={toggleRechargeModal}>
-            Cancel
-          </IconButton>
-          {signature ? (
-            <IconButton
-              loading={loading || isPending}
-              disabled={loading}
-              onClick={() => verifySignature(signature)}
-            >
-              Retry
-            </IconButton>
-          ) : (
-            <IconButton
-              loading={loading}
-              disabled={loading}
-              onClick={addBalanceHandler}
-            >
-              Submit
-            </IconButton>
-          )}
-        </div>
-      </Modal>
     </>
   );
 }

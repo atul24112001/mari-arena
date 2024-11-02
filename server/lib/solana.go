@@ -45,7 +45,9 @@ type AccountKey struct {
 }
 
 func GetTransaction(signature string) (*SimpleTransaction, error) {
-	url := fmt.Sprintf("https://solana-devnet.g.alchemy.com/v2/%s", os.Getenv("ALCHEMY_API_KEY"))
+	// url := fmt.Sprintf("https://solana-devnet.g.alchemy.com/v2/%s", os.Getenv("ALCHEMY_API_KEY"))
+	url := fmt.Sprintf("https://devnet.helius-rpc.com/?api-key=%s", os.Getenv("HELIUS_API_KEY"))
+
 	requestBody := map[string]interface{}{
 		"jsonrpc": "2.0",
 		"id":      1,
@@ -61,10 +63,6 @@ func GetTransaction(signature string) (*SimpleTransaction, error) {
 	defer resp.Body.Close()
 
 	var rpcResponse RPCResponse
-	// ReadJsonFromBody(r)
-	// if err := json.Unmarshal(resp.Body, &body); err != nil {
-	// 	return nil, err
-	// }
 	if err := json.NewDecoder(resp.Body).Decode(&rpcResponse); err != nil {
 		return nil, err
 	}

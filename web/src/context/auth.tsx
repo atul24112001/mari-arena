@@ -12,6 +12,7 @@ import axios, {
 import {
   PropsWithChildren,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -23,6 +24,8 @@ type AuthContextType = {
   setUser: (data: User | null) => void;
   apiClient: AxiosInstance;
   isAdmin: boolean;
+  sendMessage: (type: string, data: any) => void;
+  socket: WebSocket | null;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,6 +33,8 @@ const AuthContext = createContext<AuthContextType>({
   setUser: () => {},
   apiClient: axios,
   isAdmin: false,
+  sendMessage: (type: string, data: any) => {},
+  socket: null,
 });
 
 async function verifyUser(data: { name: string; identifier: string }): Promise<{
@@ -46,9 +51,20 @@ async function verifyUser(data: { name: string; identifier: string }): Promise<{
 }
 
 export const AuthContextProvider = ({ children }: PropsWithChildren) => {
-  const [user, setUser] = useState<null | User>(null);
+  const [user, setUser] = useState<null | User>({
+    id: "bd189f2a-5513-4a5a-8528-e157b14ad359",
+    name: "CVdndsAGyNj8BvLhtrQBLMtrwEgy53ACXFQmQMfH2MFQ",
+    email: "CVdndsAGyNj8BvLhtrQBLMtrwEgy53ACXFQmQMfH2MFQ",
+    inrBalance: 0,
+    solanaBalance: 370225005,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    image: null,
+    razorpayClinetId: null,
+  });
   const [token, setToken] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [socket, setSocket] = useState<WebSocket | null>(null);
 
   const wallet = useWallet();
 
@@ -68,6 +84,58 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       headers,
     });
   }, [token]);
+
+  useEffect(() => {
+    if (user && !socket) {
+      const ws = new WebSocket(`${process.env.NEXT_PUBLIC_API_URL}/ws`);
+
+      ws.onopen = () => {
+        setSocket(ws);
+      };
+
+      ws.onclose = () => {
+        setSocket(null);
+      };
+
+      ws.onerror = () => {
+        setSocket(null);
+      };
+
+      () => {
+        ws.close();
+      };
+    }
+  }, [user, socket]);
+
+  const sendMessage = useCallback(
+    (type: string, data: any) => {
+      if (socket) {
+        socket.send(
+          JSON.stringify({
+            type,
+            data,
+          })
+        );
+      }
+    },
+    [socket]
+  );
+
+  useEffect(() => {
+    if (socket && user) {
+      sendMessage("add-user", {
+        userId: user.id,
+        publicKey: user.email,
+      });
+
+      socket.onmessage = (e) => {
+        const { type } = JSON.parse(e.data);
+        if (type === "refresh") {
+          window.location.reload();
+        }
+      };
+    }
+  }, [socket, user]);
 
   useEffect(() => {
     if (wallet.connected) {
@@ -99,7 +167,9 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
     }
   }, [wallet.connected]);
   return (
-    <AuthContext.Provider value={{ user, setUser, apiClient, isAdmin }}>
+    <AuthContext.Provider
+      value={{ user, sendMessage, setUser, apiClient, isAdmin, socket }}
+    >
       {children}
     </AuthContext.Provider>
   );

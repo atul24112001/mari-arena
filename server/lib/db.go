@@ -10,7 +10,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const AdminPublicKey = "4i46NAvFYeECN2yjVAk3yaFrpLT5eBWjpLWyAjKh7VJm"
+const AdminPublicKey = "CVdndsAGyNj8BvLhtrQBLMtrwEgy53ACXFQmQMfH2MFQ"
 
 var Pool *pgxpool.Pool
 

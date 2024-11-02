@@ -24,7 +24,7 @@ export function IconButton({
 }
 
 type Props = {
-  onClick: () => void;
+  onClick?: () => void;
   color?: "success" | "error";
   disabled?: boolean;
   loading?: boolean;

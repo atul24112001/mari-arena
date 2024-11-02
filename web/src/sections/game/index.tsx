@@ -2,30 +2,97 @@
 import dynamic from "next/dynamic";
 import Matter from "matter-js";
 
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import Bird from "@/components/game/Bird";
 import Physics from "@/components/game/Physics";
 import Wall from "@/components/game/Wall";
 import { Constants } from "@/lib/constants";
 import Pipe, { generatePipe } from "@/components/game/Pipe";
-import Image from "next/image";
+import { useAuth } from "@/context/auth";
 import { useRouter } from "next/navigation";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { GameType } from "@prisma/client";
+import { toast } from "sonner";
+import Image from "next/image";
+
 const GameEngine = dynamic(() => import("@/components/game-engine"), {
   ssr: false,
 });
 
-export default function Home() {
-  const gameEngine = useRef<GameEngineRef>(null);
+type Game = {
+  isStarted: boolean;
+  gameId: string;
+  users: string[];
+};
 
+export default function GameClient({ gameType }: Props) {
+  const gameEngine = useRef<GameEngineRef>(null);
+  const { user, socket, sendMessage } = useAuth();
+  const router = useRouter();
+  const walletModal = useWalletModal();
+
+  const [game, setGame] = useState<Game | null>(null);
   const [gameStartingIn, setGameStartingIn] = useState(0);
   const [entities, setEntities] = useState<Entities>({});
   const [running, setRunning] = useState(false);
-  const router = useRouter();
+  const [gameOver, setGameOver] = useState(false);
   const [engine] = useState<Matter.Engine>(
     Matter.Engine.create({ enableSleeping: false })
   );
 
-  const [gameOver, setGameOver] = useState(false);
+  useEffect(() => {
+    if (socket) {
+      sendMessage("join-random-game", {
+        userId: user?.id,
+        gameTypeId: gameType.id,
+      });
+
+      socket.onmessage = (e) => {
+        const { type, data } = JSON.parse(e.data);
+
+        if (type === "join-game") {
+          setGame({
+            gameId: data.gameId,
+            isStarted: false,
+            users: data.users,
+          });
+        } else if (type === "new-user") {
+          setGame((prev) => ({
+            gameId: data.gameId,
+            isStarted: false,
+            users: [...(prev?.users || []), data.userId],
+          }));
+        } else if (type === "start-game") {
+          startGame();
+        } else if (type === "error") {
+          toast(data?.message || "Something went wrong", {
+            duration: 2000,
+          });
+        }
+      };
+    }
+  }, [socket]);
+
+  const notEligibleToPlay = useMemo(() => {
+    if (!user) {
+      return "Please connect your wallet";
+    }
+    // if (gameType.entry > user.solanaBalance) {
+    //   return "Insufficient balance please add solana";
+    // }
+    return null;
+  }, [user, gameType]);
+
+  useEffect(() => {
+    if (notEligibleToPlay) {
+      toast("Something went wrong", {
+        description: notEligibleToPlay,
+        className: "bg-primary text-red-500  border-0",
+        descriptionClassName: "text-primary-foreground",
+      });
+      router.push("/");
+    }
+  }, [notEligibleToPlay]);
 
   const getPipes = () => {
     const pipes: {
@@ -90,108 +157,112 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const world = engine.world;
-    const bird = Matter.Bodies.rectangle(
-      Constants.MAX_WIDTH / 4,
-      Constants.MAX_HEIGHT / 3,
-      70,
-      50
-      // { density: 0.1 }
-    );
-    // const ceiling = Matter.Bodies.rectangle(
-    //   Constants.MAX_WIDTH / 2,
-    //   Constants.CEILING_HEIGHT / 2,
-    //   Constants.MAX_WIDTH,
-    //   Constants.CEILING_HEIGHT,
-    //   { isStatic: true, density: 100 }
-    // );
-    const floor = Matter.Bodies.rectangle(
-      Constants.MAX_WIDTH / 2,
-      Constants.MAX_HEIGHT - Constants.FLOOR_HEIGHT / 2,
-      Constants.MAX_WIDTH,
-      Constants.FLOOR_HEIGHT,
-      { isStatic: true, density: 100 }
-    );
+    if (user) {
+      const world = engine.world;
+      const bird = Matter.Bodies.rectangle(
+        Constants.MAX_WIDTH / 4,
+        Constants.MAX_HEIGHT / 3,
+        70,
+        50
+      );
+      const floor = Matter.Bodies.rectangle(
+        Constants.MAX_WIDTH / 2,
+        Constants.MAX_HEIGHT - Constants.FLOOR_HEIGHT / 2,
+        Constants.MAX_WIDTH,
+        Constants.FLOOR_HEIGHT,
+        { isStatic: true, density: 100 }
+      );
 
-    const pipes = getPipes();
-    Matter.World.add(world, [
-      bird,
-      // ceiling,
+      const pipes = getPipes();
+      Matter.World.add(world, [
+        bird,
+        // ceiling,
 
-      ...pipes.reduce((pipes, current) => {
-        pipes.push(current.pipeTop);
-        pipes.push(current.pipeBottom);
-        return pipes;
-      }, [] as Matter.Body[]),
-      floor,
-    ]);
+        ...pipes.reduce((pipes, current) => {
+          pipes.push(current.pipeTop);
+          pipes.push(current.pipeBottom);
+          return pipes;
+        }, [] as Matter.Body[]),
+        floor,
+      ]);
 
-    const pipeEntities = pipes.reduce((prev, curr) => {
-      return { ...prev, ...curr.entities };
-    }, {} as Entities);
+      const pipeEntities = pipes.reduce((prev, curr) => {
+        return { ...prev, ...curr.entities };
+      }, {} as Entities);
 
-    Matter.Events.on(engine, "collisionStart", (a) => {
-      gameEngine.current?.dispatch({ type: "game-over" });
-    });
+      Matter.Events.on(engine, "collisionStart", (a) => {
+        gameEngine.current?.dispatch({ type: "game-over" });
+      });
 
-    setEntities({
-      physics: {
-        engine,
-        world,
-        renderer: undefined,
-      },
-      bird: { body: bird, color: "green", size: [70, 50], renderer: Bird },
-      // ceiling: {
-      //   body: ceiling,
-      //   color: "#ff5252",
-      //   size: [Constants.MAX_WIDTH, 30],
-      //   renderer: Wall,
-      // },
-      ...pipeEntities,
-      floor: {
-        body: floor,
-        color: "#ff5252",
-        size: [Constants.MAX_WIDTH, Constants.FLOOR_HEIGHT],
-        renderer: Wall,
-      },
-    });
-  }, []);
+      setEntities({
+        physics: {
+          engine,
+          world,
+          renderer: undefined,
+        },
+        bird: { body: bird, color: "green", size: [70, 50], renderer: Bird },
+        ...pipeEntities,
+        floor: {
+          body: floor,
+          color: "#ff5252",
+          size: [Constants.MAX_WIDTH, Constants.FLOOR_HEIGHT],
+          renderer: Wall,
+        },
+      });
+    }
+  }, [user]);
 
   const onEvent = (e: any) => {
+    if (!game || !user) {
+      return;
+    }
     if (e.type === "game-over") {
       setRunning(false);
       setGameOver(true);
+      sendMessage("game-over", {
+        gameId: game?.gameId,
+        userId: user?.id,
+      });
+    } else if (e.type === "score") {
+      sendMessage("update-board", {
+        gameId: game?.gameId,
+        userId: user?.id,
+      });
     }
   };
 
+  if (!user) {
+    return null;
+  }
+
   return (
-    <div className="h-screen w-screen overflow-clip">
+    <div className="w-screen h-screen overflow-hidden">
       <GameEngine
         ref={gameEngine}
         running={running}
         systems={[Physics]}
         initEntities={entities}
         onEvent={onEvent}
+        className=""
       >
-        <div className="h-screen bg-cover md:bg-contain overflow-hidden md bg-[url('/assets/background-day.png')]"></div>
+        <div className="h-screen bg-cover md:bg-contain overflow-hidden bg-[url('/assets/background-day.png')]"></div>
       </GameEngine>
-
       {!running && (
         <div className=" z-[1000] bg-[#00000024] fixed top-0 left-0 w-screen h-screen flex justify-center items-center">
           {gameOver ? (
-            <div className="flex flex-col items-center font-bold">
-              <p className="text-yellow-100  bg-red-500  px-3 py-1 mb-2">
-                Game Over
-              </p>
-              <button
-                onClick={() => router.push("/")}
-                className="bg-yellow-100 text-black px-3 py-1"
-              >
-                Home
-              </button>
-            </div>
+            <div></div>
           ) : (
             <div className="w-[90%]">
+              {gameStartingIn !== 0 ? (
+                <p className="font-bold text-xl text-yellow-100">
+                  Game starting in {gameStartingIn} sec...
+                </p>
+              ) : (
+                <h2 className="mb-2 font-bold text-xl text-center text-yellow-100">
+                  Waiting for opponents to join, pay attention game can start
+                  anytime...
+                </h2>
+              )}
               <div>
                 <h3 className="font-bold mb-1 text-lg text-yellow-100">
                   Rules
@@ -224,7 +295,7 @@ export default function Home() {
                 </article>
                 <article>
                   <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
-                    4. Whoever passes the most pipes will win
+                    4. Whoever passes the most pipes will win.
                   </p>
                 </article>
                 <article>
@@ -233,20 +304,6 @@ export default function Home() {
                   </p>
                 </article>
               </div>
-              {gameStartingIn !== 0 ? (
-                <p className="font-bold text-xl text-center text-yellow-100 mt-3">
-                  Game starting in {gameStartingIn} sec...
-                </p>
-              ) : (
-                <div className="flex justify-center items-center mt-3">
-                  <button
-                    onClick={startGame}
-                    className="bg-yellow-100  text-black px-3 py-1"
-                  >
-                    Start game
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -254,3 +311,7 @@ export default function Home() {
     </div>
   );
 }
+
+type Props = {
+  gameType: GameType;
+};
