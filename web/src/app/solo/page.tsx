@@ -165,7 +165,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-clip">
+    <div className="h-screen w-screen overflow-clip relative z-50">
       <GameEngine
         ref={gameEngine}
         running={running}
@@ -173,7 +173,7 @@ export default function Home() {
         initEntities={entities}
         onEvent={onEvent}
       >
-        <div className="h-screen bg-cover md:bg-contain overflow-hidden md bg-[url('/assets/background-day.png')]"></div>
+        <div className="h-screen  bg-cover md:bg-contain overflow-hidden md bg-[url('/assets/background-day.png')]"></div>
       </GameEngine>
 
       {!running && (
@@ -197,14 +197,14 @@ export default function Home() {
                   Rules
                 </h3>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     1. Once the game is started you can't opt out if you close
                     the tab you will be considered dead with 0 points and sol
                     won't be refunded
                   </p>
                 </article>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     2. This is a dangerous area(image) for birds if they come
                     into contact with the pipe. Although the bird appears to be
                     far away, it is actually not.
@@ -218,17 +218,17 @@ export default function Home() {
                   />
                 </article>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     3. The speed of the bird will increase gradually.
                   </p>
                 </article>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     4. Whoever passes the most pipes will win
                   </p>
                 </article>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     4. Game is over when the bird touches anything.
                   </p>
                 </article>

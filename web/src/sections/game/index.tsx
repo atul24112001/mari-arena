@@ -79,9 +79,24 @@ export default function GameClient({ gameType }: Props) {
             }
             return {
               ...prev,
-              solanaBalance: data.solanaBalance,
+              solanaBalance: prev.solanaBalance + data.amount,
             };
           });
+          router.push("/");
+        } else if (type === "loser") {
+          toast("You lose!", {
+            duration: 2000,
+          });
+          setUser((prev) => {
+            if (!prev) {
+              return prev;
+            }
+            return {
+              ...prev,
+              solanaBalance: prev.solanaBalance - data.amount,
+            };
+          });
+          router.push("/");
         }
       };
     }
@@ -91,9 +106,9 @@ export default function GameClient({ gameType }: Props) {
     if (!user) {
       return "Please connect your wallet";
     }
-    // if (gameType.entry > user.solanaBalance) {
-    //   return "Insufficient balance please add solana";
-    // }
+    if (gameType.entry > user.solanaBalance) {
+      return "Insufficient balance please add solana";
+    }
     return null;
   }, [user, gameType]);
 
@@ -250,7 +265,7 @@ export default function GameClient({ gameType }: Props) {
   }
 
   return (
-    <div className="w-screen h-screen overflow-hidden">
+    <div className="w-screen h-screen overflow-hidden relative z-50">
       <GameEngine
         ref={gameEngine}
         running={running}
@@ -264,32 +279,57 @@ export default function GameClient({ gameType }: Props) {
       {!running && (
         <div className=" z-[1000] bg-[#00000024] fixed top-0 left-0 w-screen h-screen flex justify-center items-center">
           {gameOver ? (
-            <div></div>
+            <div className="w-[90%] flex flex-col gap-1 items-center">
+              <h2 className="font-bold text-primary-bg text-center">
+                You can wait for results as other player(s) are/is still alive
+                or you can go back home if you won your solana will be credited
+                to your account
+              </h2>
+              <button
+                onClick={() => router.push("/")}
+                className="bg-yellow-100 text-black px-3 py-1"
+              >
+                Home
+              </button>
+            </div>
           ) : (
             <div className="w-[90%]">
               {gameStartingIn !== 0 ? (
                 <p className="font-bold text-xl text-yellow-100">
                   Game starting in {gameStartingIn} sec...
                 </p>
-              ) : (
+              ) : confirmed ? (
                 <h2 className="mb-2 font-bold text-xl text-center text-yellow-100">
                   Waiting for opponents to join, pay attention game can start
                   anytime...
                 </h2>
+              ) : (
+                <div className="flex flex-col items-center mb-2">
+                  <button
+                    onClick={() => setConfirmed(true)}
+                    className="bg-yellow-100 text-black px-3 py-1"
+                  >
+                    Join game
+                  </button>
+                  <p className="text-bl">
+                    One you join game you can't back-off, entry fees will be
+                    deducted
+                  </p>
+                </div>
               )}
               <div>
                 <h3 className="font-bold mb-1 text-lg text-yellow-100">
                   Rules
                 </h3>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     1. Once the game is started you can't opt out if you close
                     the tab you will be considered dead with 0 points and sol
                     won't be refunded
                   </p>
                 </article>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     2. This is a dangerous area(image) for birds if they come
                     into contact with the pipe. Although the bird appears to be
                     far away, it is actually not.
@@ -303,18 +343,18 @@ export default function GameClient({ gameType }: Props) {
                   />
                 </article>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     3. The speed of the bird will increase gradually.
                   </p>
                 </article>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
                     4. Whoever passes the most pipes will win.
                   </p>
                 </article>
                 <article>
-                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1">
-                    4. Game is over when the bird touches anything.
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
+                    5. Game is over when the bird touches anything.
                   </p>
                 </article>
               </div>

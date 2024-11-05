@@ -22,9 +22,9 @@ export default async function Home({ searchParams }: ServerProps) {
   const { data } = await response.json();
 
   return (
-    <div className="h-screen bg-[#000] relative overflow-hidden bg-cover md:bg-contain  ">
+    <>
       <div className="relative z-10 px-4 md:px-10 py-4 mb-4 gap-4 flex justify-between items-center">
-        <h1 className="text-secondary text-sm md:text-lg   font-bold flex-1">
+        <h1 className="text-primary text-sm md:text-lg   font-bold flex-1">
           Mari&nbsp;arena
         </h1>
         <ClientHomePage />
@@ -55,8 +55,6 @@ export default async function Home({ searchParams }: ServerProps) {
           <AdminCreateGameType />
         </div>
       </div>
-      <StarsBackground />
-      <ShootingStars />
-    </div>
+    </>
   );
 }

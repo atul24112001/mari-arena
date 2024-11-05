@@ -2,13 +2,11 @@ package user
 
 import (
 	"flappy-bird-server/lib"
+	"flappy-bird-server/middleware"
 	"flappy-bird-server/model"
 	"log"
 	"net/http"
-	"os"
-	"time"
 
-	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -20,7 +18,7 @@ type RequestBody struct {
 
 func verifyUser(w http.ResponseWriter, r *http.Request) {
 	var body RequestBody
-	var JWT_SECRET = []byte(os.Getenv("SECRET"))
+	// var JWT_SECRET = []byte(os.Getenv("SECRET"))
 
 	err := lib.ReadJsonFromBody(r, w, &body)
 	if err != nil {
@@ -50,21 +48,21 @@ func verifyUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	expirationTime := time.Now().Add(60 * 24 * 30 * time.Minute)
+	// expirationTime := time.Now().Add(24 * 30 * time.Hour)
 
-	claims := &model.TokenPayload{
-		Id: user.Id,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expirationTime.Unix(),
-		},
-	}
+	// claims := &model.TokenPayload{
+	// 	Id: user.Id,
+	// 	StandardClaims: jwt.StandardClaims{
+	// 		ExpiresAt: expirationTime.Unix(),
+	// 	},
+	// }
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(JWT_SECRET)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	// tokenString, err := token.SignedString(JWT_SECRET)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
 
 	// http.SetCookie(w, &http.Cookie{
 	// 	Name:     "token",
@@ -79,7 +77,44 @@ func verifyUser(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"message": "success",
 		"data":    []model.User{user},
-		"token":   tokenString,
+		// "token":   tokenString,
+	}
+
+	if user.Email == lib.AdminPublicKey {
+		response["isAdmin"] = true
+	}
+
+	lib.WriteJson(w, 200, response)
+}
+
+func verifyUser2(w http.ResponseWriter, r *http.Request) {
+	user, err := middleware.CheckAccess(w, r)
+	if err != nil {
+		lib.ErrorJsonWithCode(w, err, 401)
+		return
+	}
+
+	// expirationTime := time.Now().Add(60 * 24 * 30 * time.Minute)
+
+	// claims := &model.TokenPayload{
+	// 	Id: user.Id,
+	// 	StandardClaims: jwt.StandardClaims{
+	// 		ExpiresAt: expirationTime.Unix(),
+	// 	},
+	// }
+
+	// token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	// var JWT_SECRET = []byte(os.Getenv("SECRET"))
+	// tokenString, err := token.SignedString(JWT_SECRET)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
+
+	response := map[string]interface{}{
+		"message": "success",
+		"data":    []model.User{user},
+		// "token":   tokenString,
 	}
 
 	if user.Email == lib.AdminPublicKey {

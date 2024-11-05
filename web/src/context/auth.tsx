@@ -1,5 +1,12 @@
 "use client";
+import { IconButton } from "@/components/helper";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ShootingStars } from "@/components/ui/shooting-stars";
+import { StarsBackground } from "@/components/ui/star-background";
 import { User } from "@prisma/client";
+import { DialogContent } from "@radix-ui/react-dialog";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios, {
@@ -9,6 +16,7 @@ import axios, {
   CreateAxiosDefaults,
   HeadersDefaults,
 } from "axios";
+
 import {
   Dispatch,
   PropsWithChildren,
@@ -18,8 +26,10 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 
 type AuthContextType = {
   user: User | null;
@@ -28,6 +38,8 @@ type AuthContextType = {
   isAdmin: boolean;
   sendMessage: (type: string, data: any) => void;
   socket: WebSocket | null;
+  openPasswordDialog: boolean;
+  togglePasswordDialog: () => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -37,9 +49,15 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   sendMessage: (type: string, data: any) => {},
   socket: null,
+  openPasswordDialog: false,
+  togglePasswordDialog: () => {},
 });
 
-async function verifyUser(data: { name: string; identifier: string }): Promise<{
+async function verifyUser(data: {
+  name: string;
+  identifier: string;
+  token: string;
+}): Promise<{
   data: [User];
   message: string;
   token: string;
@@ -47,22 +65,49 @@ async function verifyUser(data: { name: string; identifier: string }): Promise<{
 }> {
   const response = await axios.post(
     `${process.env.NEXT_PUBLIC_API_URL}/api/user`,
-    data
+    {
+      name: data.name,
+      identifier: data.identifier,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${data.token}`,
+      },
+    }
   );
   return response.data;
 }
 
 export const AuthContextProvider = ({ children }: PropsWithChildren) => {
+  const passwordRef = useRef<HTMLInputElement>(null);
+
   const [user, setUser] = useState<null | User>(null);
   const [token, setToken] = useState<string | null>(null);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [socket, setSocket] = useState<WebSocket | null>(null);
+  const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const wallet = useWallet();
 
   const { mutate } = useMutation({
     mutationFn: verifyUser,
     mutationKey: ["verifyUser"],
+  });
+
+  const authenticateMutant = useMutation({
+    mutationFn: async (data: { password: string; identifier: string }) => {
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth`,
+        {
+          password: data.password,
+          identifier: data.identifier,
+        }
+      );
+      return response.data;
+    },
+    mutationKey: ["authenticate"],
   });
 
   const apiClient = useMemo(() => {
@@ -129,14 +174,18 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
     }
   }, [socket, user]);
 
+  const togglePasswordDialog = () => setOpenPasswordDialog((prev) => !prev);
+
   useEffect(() => {
+    const _token = localStorage.getItem("token");
+    const publicKey = wallet.publicKey?.toBase58();
     if (wallet.connected) {
-      const publicKey = wallet.publicKey?.toBase58();
-      if (publicKey) {
+      if (_token && publicKey) {
         mutate(
           {
             name: publicKey,
             identifier: publicKey,
+            token: _token,
           },
           {
             onError: () => {
@@ -148,21 +197,101 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
               if (data.isAdmin) {
                 setIsAdmin(true);
               }
+              setOpenPasswordDialog(false);
             },
           }
         );
-        return;
+      } else {
+        setUser(null);
+        setOpenPasswordDialog(true);
       }
-      wallet.disconnect();
-    } else {
-      setUser(null);
     }
   }, [wallet.connected]);
+
+  const authenticate = () => {
+    if (!wallet.publicKey) {
+      toast("Please connect a wallet first");
+      togglePasswordDialog();
+      return;
+    }
+    const password = passwordRef.current?.value || "";
+    if (password.length > 15) {
+      toast("Password length should be less then 15");
+      return;
+    }
+    if (password.length < 7) {
+      toast("Password length should be more then 7");
+      return;
+    }
+    authenticateMutant.mutate(
+      {
+        identifier: wallet.publicKey?.toBase58(),
+        password,
+      },
+      {
+        onSuccess: (data) => {
+          togglePasswordDialog(), setUser(data.data);
+          setToken(data.token);
+          localStorage.setItem("token", data.token);
+        },
+        onError: (error) => {
+          // @ts-ignore
+          toast(error?.response?.data?.message || error.message);
+        },
+      }
+    );
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, sendMessage, setUser, apiClient, isAdmin, socket }}
+      value={{
+        user,
+        sendMessage,
+        setUser,
+        apiClient,
+        isAdmin,
+        socket,
+        openPasswordDialog,
+        togglePasswordDialog,
+      }}
     >
-      {children}
+      <div className="h-screen dark bg-[#000] text-white  relative overflow-hidden bg-cover md:bg-contain">
+        {openPasswordDialog ? (
+          <div className="text-white h-screen relative z-10 flex justify-center items-center">
+            <div>
+              <Input
+                ref={passwordRef}
+                className="text-black"
+                placeholder="Password"
+                type={showPassword ? "text" : "password"}
+              />
+              <div className="cursor-pointer flex items-center space-x-2 mt-2">
+                <Checkbox
+                  checked={showPassword}
+                  onCheckedChange={(v) => setShowPassword(v as boolean)}
+                  id="terms"
+                  className="dark"
+                />
+                <label
+                  htmlFor="terms"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Show Password
+                </label>
+              </div>
+
+              <div className="flex justify-center mt-3">
+                <IconButton onClick={authenticate}>Unlock</IconButton>
+              </div>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
+
+        <StarsBackground />
+        <ShootingStars />
+      </div>
     </AuthContext.Provider>
   );
 };

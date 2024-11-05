@@ -1,8 +1,6 @@
 package model
 
 import (
-	"flappy-bird-server/lib"
-
 	"github.com/golang-jwt/jwt"
 )
 
@@ -26,14 +24,4 @@ type User struct {
 type TokenPayload struct {
 	Id string `json:"id"`
 	jwt.StandardClaims
-}
-
-func (s *AddUserData) FillStruct(m map[string]interface{}) error {
-	for k, v := range m {
-		err := lib.SetField(s, k, v)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -29,7 +29,7 @@ export default function ClientHomePage() {
   const rechargeAmountRef = useRef<HTMLInputElement>(null);
 
   const [openRechargeModal, setOpenRechargeModal] = useState(false);
-  const { user, apiClient } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -84,7 +84,7 @@ export default function ClientHomePage() {
     <>
       {wallet.connected ? (
         <div className="flex justify-between items-center  gap-2">
-          <div className="text-secondary">
+          <div className="text-primary">
             {(user?.solanaBalance || 0) / 10 ** 9} SOL
           </div>
           <Dialog open={openRechargeModal} onOpenChange={toggleRechargeModal}>

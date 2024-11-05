@@ -52,6 +52,7 @@ const Physics = (
 
       if (topPipe.body.position.x < -Constants.PIPE_WIDTH) {
         increaseSpeed();
+        dispatch({ type: "score" });
         const lastBody = (
           i == 1 ? entities["pipe10Top"] : entities[`pipe${i - 1}Top`]
         )?.body;

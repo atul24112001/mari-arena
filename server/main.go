@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flappy-bird-server/auth"
 	gameManager "flappy-bird-server/game-manager"
 	gametype "flappy-bird-server/game-type"
 	"flappy-bird-server/lib"
@@ -30,11 +31,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var userId string
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Println("Error reading message:", err)
-			gameManager.GetInstance().DeleteUser(conn)
+			gameManager.GetInstance().DeleteUser(conn, userId)
 			break
 		}
 
@@ -55,22 +56,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		switch messageType {
 		case "add-user":
-			gameManager.GetInstance().AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
+			userId = gameManager.GetInstance().AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
 		case "join-random-game":
-			gameManager.GetInstance().JoinGame(messageData["userId"].(string), messageData["gameTypeId"].(string))
+			gameManager.GetInstance().JoinGame(userId, messageData["gameTypeId"].(string))
 		case "update-board":
-			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), messageData["userId"].(string))
+			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), userId)
 		case "game-over":
-			gameManager.GetInstance().GameOver(messageData["gameId"].(string), messageData["userId"].(string))
+			gameManager.GetInstance().GameOver(messageData["gameId"].(string), userId)
 		}
 	}
 }
 
 func httpCorsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-
-		log.Println(origin)
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -89,6 +87,7 @@ func main() {
 
 	http.HandleFunc("/ws", handleWebSocket)
 	http.Handle("/api/user", httpCorsMiddleware(http.HandlerFunc(user.Handler)))
+	http.Handle("/api/auth", httpCorsMiddleware(http.HandlerFunc(auth.Handler)))
 	http.Handle("/api/transaction", httpCorsMiddleware(http.HandlerFunc(transaction.Handler)))
 	http.Handle("/api/game-types", httpCorsMiddleware(http.HandlerFunc(gametype.Handler)))
 

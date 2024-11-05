@@ -8,9 +8,10 @@ import (
 )
 
 type User struct {
-	Id        string
-	PublicKey string
-	Ws        *websocket.Conn
+	Id            string
+	CurrentGameId string
+	PublicKey     string
+	Ws            *websocket.Conn
 }
 
 func (user *User) SendMessage(messageType string, data map[string]interface{}) {

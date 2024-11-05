@@ -5,12 +5,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"flappy-bird-server/model"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"reflect"
+	"time"
+
+	"github.com/golang-jwt/jwt"
 )
 
 type jsonResponse struct {
@@ -132,4 +136,23 @@ func HashString(text string) string {
 	hashedBytes := hash.Sum(nil)
 	hashString := hex.EncodeToString(hashedBytes)
 	return hashString
+}
+
+func GenerateToken(id string) (string, error) {
+	var JWT_SECRET = []byte(os.Getenv("SECRET"))
+	expirationTime := time.Now().Add(60 * 24 * 30 * time.Minute)
+	claims := &model.TokenPayload{
+		Id: id,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expirationTime.Unix(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(JWT_SECRET)
+
+	if err != nil {
+		return "", err
+	}
+	return tokenString, nil
 }
