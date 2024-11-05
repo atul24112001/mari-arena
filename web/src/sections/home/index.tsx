@@ -1,6 +1,6 @@
 "use client";
 
-import { IconButton, Modal } from "@/components/helper";
+import { IconButton } from "@/components/helper";
 import {
   Dialog,
   DialogContent,
@@ -8,10 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Meteors } from "@/components/ui/meteors";
-import { StarsBackground } from "@/components/ui/star-background";
 import { useAuth } from "@/context/auth";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";

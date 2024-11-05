@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import Matter from "matter-js";
 
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Bird from "@/components/game/Bird";
 import Physics from "@/components/game/Physics";
 import Wall from "@/components/game/Wall";
@@ -10,7 +10,6 @@ import { Constants } from "@/lib/constants";
 import Pipe, { generatePipe } from "@/components/game/Pipe";
 import { useAuth } from "@/context/auth";
 import { useRouter } from "next/navigation";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { GameType } from "@prisma/client";
 import { toast } from "sonner";
 import Image from "next/image";
@@ -219,7 +218,7 @@ export default function GameClient({ gameType }: Props) {
         return { ...prev, ...curr.entities };
       }, {} as Entities);
 
-      Matter.Events.on(engine, "collisionStart", (a) => {
+      Matter.Events.on(engine, "collisionStart", () => {
         gameEngine.current?.dispatch({ type: "game-over" });
       });
 
@@ -312,8 +311,8 @@ export default function GameClient({ gameType }: Props) {
                     Join game
                   </button>
                   <p className="text-bl">
-                    One you join game you can't back-off, entry fees will be
-                    deducted
+                    One you join game you can&apos;t back-off, entry fees will
+                    be deducted
                   </p>
                 </div>
               )}
@@ -323,9 +322,9 @@ export default function GameClient({ gameType }: Props) {
                 </h3>
                 <article>
                   <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
-                    1. Once the game is started you can't opt out if you close
-                    the tab you will be considered dead with 0 points and sol
-                    won't be refunded
+                    1. Once the game is started you can&apos;t opt out if you
+                    close the tab you will be considered dead with 0 points and
+                    sol won&apos;t be refunded
                   </p>
                 </article>
                 <article>

@@ -1,7 +1,5 @@
 import Matter from "matter-js";
 import { Constants } from "@/lib/constants";
-import Pipe, { generatePipe } from "./Pipe";
-import Wall from "./Wall";
 
 type Options = {
   touches: any;
@@ -32,7 +30,7 @@ const Physics = (
         (name == "onKeyPress" && AllowedKeyCode[payload.code])
       );
     })
-    .forEach((e) => {
+    .forEach(() => {
       entities.bird.fly = true;
       Matter.Body.applyForce(bird, bird.position, { x: 0.0, y: -0.08 });
     });

@@ -1,7 +1,7 @@
-import Matter, { Body } from "matter-js";
-import React, { useEffect, useState } from "react";
+import { Body } from "matter-js";
+import React from "react";
 
-export default function Bird({ size, body, color, fly }: Props) {
+export default function Bird({ size, body }: Props) {
   const [width, height] = size;
   const x = body.position.x - width / 2;
   const y = body.position.y - height / 2;

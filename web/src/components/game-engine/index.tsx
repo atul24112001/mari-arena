@@ -194,4 +194,5 @@ const GameEngine = forwardRef<GameEngineRef, GameEngineProps>((props, ref) => {
   );
 });
 
+GameEngine.displayName = "GameEngine";
 export default GameEngine;

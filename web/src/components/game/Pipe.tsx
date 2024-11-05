@@ -15,7 +15,7 @@ export const generatePipe = () => {
   return sizes;
 };
 
-export default function Pipe({ size, body, color, top }: Props) {
+export default function Pipe({ size, body, top }: Props) {
   const [width, height] = size;
   const x = body.position.x - width / 2;
   const y = body.position.y - height / 2;

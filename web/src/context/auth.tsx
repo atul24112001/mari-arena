@@ -1,21 +1,13 @@
 "use client";
 import { IconButton } from "@/components/helper";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ShootingStars } from "@/components/ui/shooting-stars";
 import { StarsBackground } from "@/components/ui/star-background";
 import { User } from "@prisma/client";
-import { DialogContent } from "@radix-ui/react-dialog";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import axios, {
-  AxiosHeaders,
-  AxiosInstance,
-  AxiosStatic,
-  CreateAxiosDefaults,
-  HeadersDefaults,
-} from "axios";
+import { useMutation } from "@tanstack/react-query";
+import axios, { AxiosInstance } from "axios";
 
 import {
   Dispatch,
@@ -47,7 +39,7 @@ const AuthContext = createContext<AuthContextType>({
   setUser: () => {},
   apiClient: axios,
   isAdmin: false,
-  sendMessage: (type: string, data: any) => {},
+  sendMessage: () => {},
   socket: null,
   openPasswordDialog: false,
   togglePasswordDialog: () => {},
@@ -138,7 +130,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
         setSocket(null);
       };
 
-      () => {
+      return () => {
         ws.close();
       };
     }
@@ -230,7 +222,8 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       },
       {
         onSuccess: (data) => {
-          togglePasswordDialog(), setUser(data.data);
+          togglePasswordDialog();
+          setUser(data.data);
           setToken(data.token);
           localStorage.setItem("token", data.token);
         },

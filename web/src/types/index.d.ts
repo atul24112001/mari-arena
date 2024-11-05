@@ -1,17 +1,17 @@
-type Entity = { renderer: any; [key: string]: any };
+type Entity = { [key: string]: any };
 type Entities = Record<string, Entity>;
 
 type GameEngineRef = {
   start: () => void;
   stop: () => void;
   swap: (newEntities: Entities | Promise<Entities>) => Promise<void>;
-  dispatch: (e: any) => void;
+  dispatch: (e: { type: string }) => void;
 };
 
 type Params = { [key: string]: string };
 type SearchParams = { [key: string]: string | string[] | undefined };
 
 type ServerProps = {
-  params: Params;
-  searchParams: SearchParams;
+  params: Promise<Params>;
+  searchParams: Promise<SearchParams>;
 };

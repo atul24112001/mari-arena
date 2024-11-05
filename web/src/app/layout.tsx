@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "Mari arena - %s",
   },
   description:
-    "In mari arena you there are multiple model like 1v1, solo, 1v10. Solo is free rest of the other modes has entry fees",
+    "In mari arena you there are multiple model like 1v1, solo, 1v10. Solo is free rest of the other modes has entry fees, play on solana for fun",
   icons: [
     { rel: "icon", url: "/favicon/favicon.ico" },
     {

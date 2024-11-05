@@ -1,4 +1,4 @@
-import Matter, { Body } from "matter-js";
+import { Body } from "matter-js";
 import React from "react";
 
 export default function Wall({ size, body, color }: Props) {

@@ -2,22 +2,12 @@ import React from "react";
 import ClientHomePage from "@/sections/home";
 import { Card } from "@/components/helper";
 import { GameType } from "@prisma/client";
-import axios from "axios";
 import AdminCreateGameType from "@/sections/home/admin/CreateGameType";
-import { StarsBackground } from "@/components/ui/star-background";
-import { ShootingStars } from "@/components/ui/shooting-stars";
 
-// export let cache = {
-//   gamesTypes: [] as GameType[],
-//   lastUpdated: new Date().getTime() - 1000,
-// };
-
-export default async function Home({ searchParams }: ServerProps) {
-  const { withoutCache } = await Promise.resolve(searchParams);
-
+export default async function Home() {
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`,
-    { cache: withoutCache ? "no-cache" : "force-cache" }
+    { cache: "no-cache" }
   );
   const { data } = await response.json();
 

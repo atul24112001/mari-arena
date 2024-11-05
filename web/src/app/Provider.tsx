@@ -7,7 +7,6 @@ import {
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { clusterApiUrl } from "@solana/web3.js";
-import { RecoilRoot } from "recoil";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthContextProvider } from "@/context/auth";
 
@@ -15,7 +14,7 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 
 const queryClient = new QueryClient();
 
-export default function Provider({ children }: PropsWithChildren<Props>) {
+export default function Provider({ children }: PropsWithChildren) {
   const endpoint = useMemo(
     () => clusterApiUrl(WalletAdapterNetwork.Devnet),
     []
@@ -33,5 +32,3 @@ export default function Provider({ children }: PropsWithChildren<Props>) {
     </ConnectionProvider>
   );
 }
-
-type Props = {};
