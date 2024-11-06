@@ -124,11 +124,17 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       };
 
       ws.onclose = () => {
-        setSocket(null);
+        wallet.disconnect();
+        setUser(null);
+        setToken(null);
+        localStorage.removeItem("token");
       };
 
       ws.onerror = () => {
-        setSocket(null);
+        wallet.disconnect();
+        setUser(null);
+        setToken(null);
+        localStorage.removeItem("token");
       };
 
       return () => {
