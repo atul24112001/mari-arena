@@ -117,20 +117,22 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     if (user && !socket) {
-      const ws = new WebSocket(`${process.env.NEXT_PUBLIC_API_URL}/ws`);
+      const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}/ws`);
 
       ws.onopen = () => {
         setSocket(ws);
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        console.log(e);
         wallet.disconnect();
         setUser(null);
         setToken(null);
         localStorage.removeItem("token");
       };
 
-      ws.onerror = () => {
+      ws.onerror = (e) => {
+        console.log(e);
         wallet.disconnect();
         setUser(null);
         setToken(null);

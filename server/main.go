@@ -91,7 +91,7 @@ func main() {
 	http.HandleFunc("/ws", handleWebSocket)
 	http.Handle("/api/user", httpCorsMiddleware(http.HandlerFunc(user.Handler)))
 	http.Handle("/api/auth", httpCorsMiddleware(http.HandlerFunc(auth.Handler)))
-	http.Handle("/api/transaction", httpCorsMiddleware(http.HandlerFunc(transaction.Handler)))
+	http.Handle("/api/transaction", http.HandlerFunc(transaction.Handler))
 	http.Handle("/api/game-types", httpCorsMiddleware(http.HandlerFunc(gametype.Handler)))
 
 	fmt.Println("WebSocket server listening on :8080")
