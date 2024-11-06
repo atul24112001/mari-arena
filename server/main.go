@@ -21,7 +21,9 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return r.Header.Get("origin") == os.Getenv("FRONTEND_URL")
+		origin := r.Header.Get("origin")
+		log.Println("Origin", origin)
+		return origin == os.Getenv("FRONTEND_URL")
 	},
 }
 
