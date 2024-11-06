@@ -115,35 +115,36 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
     });
   }, [token]);
 
-  useEffect(() => {
-    if (user && !socket) {
-      const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}/ws`);
+  // useEffect(() => {
+  //   if (user && !socket) {
+  //     const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}/ws`);
+  //     console.log("Connected");
+  //     ws.onopen = () => {
+  //       setSocket(ws);
+  //     };
 
-      ws.onopen = () => {
-        setSocket(ws);
-      };
+  // ws.onclose = (e) => {
+  //   console.log(JSON.stringify(e));
+  //   wallet.disconnect();
+  //   setUser(null);
+  //   setToken(null);
+  //   localStorage.removeItem("token");
+  // };
 
-      ws.onclose = (e) => {
-        console.log(e);
-        wallet.disconnect();
-        setUser(null);
-        setToken(null);
-        localStorage.removeItem("token");
-      };
+  // ws.onerror = (e) => {
+  //   console.log(JSON.stringify(e));
+  //   wallet.disconnect();
+  //   setUser(null);
+  //   setToken(null);
+  //   localStorage.removeItem("token");
+  // };
 
-      ws.onerror = (e) => {
-        console.log(e);
-        wallet.disconnect();
-        setUser(null);
-        setToken(null);
-        localStorage.removeItem("token");
-      };
-
-      return () => {
-        ws.close();
-      };
-    }
-  }, [user, socket]);
+  //     return () => {
+  //       console.log("closing");
+  //       ws.close();
+  //     };
+  //   }
+  // }, [user, socket]);
 
   const sendMessage = useCallback(
     (type: string, data: any) => {
@@ -177,6 +178,28 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
   const togglePasswordDialog = () => setOpenPasswordDialog((prev) => !prev);
 
+  const connectSocket = () => {
+    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}`);
+    ws.onopen = () => {
+      setSocket(ws);
+    };
+    ws.onclose = (e) => {
+      console.log(JSON.stringify(e));
+      wallet.disconnect();
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem("token");
+    };
+
+    ws.onerror = (e) => {
+      console.log(JSON.stringify(e));
+      wallet.disconnect();
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem("token");
+    };
+  };
+
   useEffect(() => {
     const _token = localStorage.getItem("token");
     const publicKey = wallet.publicKey?.toBase58();
@@ -193,6 +216,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
               wallet.disconnect();
             },
             onSuccess: (data) => {
+              connectSocket();
               setUser(data.data[0]);
               setToken(_token);
               if (data.isAdmin) {
@@ -232,6 +256,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       {
         onSuccess: (data) => {
           togglePasswordDialog();
+          connectSocket();
           setUser(data.data);
           setToken(data.token);
           localStorage.setItem("token", data.token);
