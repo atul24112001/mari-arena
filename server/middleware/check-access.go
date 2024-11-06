@@ -5,7 +5,6 @@ import (
 	"flappy-bird-server/lib"
 	"flappy-bird-server/model"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -14,10 +13,8 @@ import (
 )
 
 func CheckAccess(w http.ResponseWriter, r *http.Request) (model.User, error) {
-	log.Println("Checking access")
-	// cookie, err := r.Cookie("token")
 	tokenArr := strings.Split(r.Header.Get("Authorization"), " ")
-	if len(tokenArr) < 1 {
+	if len(tokenArr) < 2 {
 		return model.User{}, errors.New("unauthorized")
 	}
 	tokenString := tokenArr[1]

@@ -104,6 +104,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
   const apiClient = useMemo(() => {
     const headers: any = {};
+    console.log("apiClient", { token });
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
@@ -185,7 +186,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
             },
             onSuccess: (data) => {
               setUser(data.data[0]);
-              setToken(data.token);
+              setToken(_token);
               if (data.isAdmin) {
                 setIsAdmin(true);
               }

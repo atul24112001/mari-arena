@@ -62,11 +62,11 @@ func authenticate(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		} else {
+
 			lib.ErrorJsonWithCode(w, err, 500)
 			return
 		}
 	}
-
 	currentPasswordHash := lib.HashString(body.Password)
 	token, err := lib.GenerateToken(user.Id)
 	if err != nil {
