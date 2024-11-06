@@ -1,0 +1,41 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Add to known hosts
+        run: |
+          mkdir -p ~/.ssh/known_hosts
+          cp known_hosts ~/.ssh/known_hosts
+
+      - name: SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd mari-arena
+            git stash
+            git pull origin main
+
+            source ~/.profile
+            source ~/.nvm/nvm.sh
+            nvm use v20.9.0
+
+            cd server
+            go mod tidy
+            go build .
+            pm2 restart mari-arena-server
+            cd ../web
+            npm install
+            npm run build
+            pm2 restart mari-arena-frontend
