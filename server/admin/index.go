@@ -1,14 +1,18 @@
 package admin
 
 import (
-	"flappy-bird-server/middleware"
-
-	"github.com/gofiber/fiber/v2"
+	"flappy-bird-server/lib"
+	"net/http"
 )
 
-func Router(api fiber.Router) {
-	adminRoute := api.Group("/admin")
-
-	adminRoute.Get("/metric", middleware.CheckAccess, middleware.CheckIsAdmin, getMetrics)
-	adminRoute.Get("/maintenance", middleware.CheckAccess, middleware.CheckIsAdmin, updateUnderMaintenance)
+func Handler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		GetMetrics(w, r)
+		return
+	}
+	if r.Method == http.MethodPost {
+		UpdateUnderMaintenance(w, r)
+		return
+	}
+	lib.ErrorJson(w, 405, "Method not allowed", "")
 }

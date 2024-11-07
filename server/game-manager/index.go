@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/contrib/websocket"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 type NewGame struct {

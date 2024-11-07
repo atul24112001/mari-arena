@@ -8,7 +8,7 @@ import Error500 from "@/sections/error/Error500";
 export default async function Home() {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/game-type`
+      `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`
     );
     const data = await response.json();
 

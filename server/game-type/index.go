@@ -1,14 +1,17 @@
 package gametype
 
 import (
-	"flappy-bird-server/middleware"
-
-	"github.com/gofiber/fiber/v2"
+	"flappy-bird-server/lib"
+	"net/http"
 )
 
-func Router(api fiber.Router) {
-	gameTypeRoute := api.Group("/game-type")
-
-	gameTypeRoute.Post("/", middleware.CheckAccess, addGameType)
-	gameTypeRoute.Get("/", getGameTypes)
+func Handler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		addGameType(w, r)
+		return
+	} else if r.Method == http.MethodGet {
+		getGameTypes(w, r)
+		return
+	}
+	lib.ErrorJson(w, 405, "Method not allowed", "")
 }

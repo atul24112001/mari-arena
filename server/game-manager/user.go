@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"log"
 
-	"github.com/gofiber/contrib/websocket"
-	// "github.com/gorilla/websocket"
+	"github.com/gorilla/websocket"
 )
 
 type User struct {

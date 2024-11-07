@@ -2,9 +2,8 @@ package user
 
 import (
 	"flappy-bird-server/lib"
-	"flappy-bird-server/model"
-
-	"github.com/gofiber/fiber/v2"
+	"flappy-bird-server/middleware"
+	"net/http"
 )
 
 type RequestBody struct {
@@ -12,18 +11,16 @@ type RequestBody struct {
 	Identifier string `json:"identifier"`
 }
 
-func verifyUser(c *fiber.Ctx) error {
-	user, ok := c.Locals("user").(model.User)
-	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(map[string]interface{}{
-			"message": "Unauthorized",
-		})
+func verifyUser(w http.ResponseWriter, r *http.Request) {
+	user, err := middleware.CheckAccess(w, r)
+	if err != nil {
+		lib.ErrorJson(w, http.StatusUnauthorized, "Unauthorized", "")
+		return
 	}
 
 	response := map[string]interface{}{
 		"message": "success",
-
-		"data": []model.User{user},
+		"data":    []middleware.User{user},
 	}
 
 	if user.Email == lib.AdminPublicKey {
@@ -33,6 +30,5 @@ func verifyUser(c *fiber.Ctx) error {
 	if lib.UnderMaintenance {
 		response["underMaintenance"] = true
 	}
-
-	return c.Status(fiber.StatusOK).JSON(response)
+	lib.WriteJson(w, http.StatusOK, response)
 }

@@ -1,11 +1,10 @@
 package auth
 
 import (
-	"errors"
 	"flappy-bird-server/lib"
 	"flappy-bird-server/model"
+	"net/http"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -15,78 +14,69 @@ type AuthenticateRequestBody struct {
 	Password   string `json:"password"`
 }
 
-func authenticate(c *fiber.Ctx) error {
+func authenticate(w http.ResponseWriter, r *http.Request) {
 	var body AuthenticateRequestBody
-	err := c.BodyParser(&body)
+	err := lib.ReadJsonFromBody(r, w, &body)
 	if err != nil {
-		return c.Status(400).JSON(map[string]interface{}{
-			"message": err.Error(),
-		})
+		lib.ErrorJson(w, http.StatusBadRequest, err.Error(), "")
+		return
 	}
-
 	if len(body.Password) < 7 {
-		return c.Status(400).JSON(map[string]interface{}{
-			"message": "password length should be more than 7",
-		})
+		lib.ErrorJson(w, http.StatusBadRequest, "password length should be more than 7", "")
+		return
 	}
 	if len(body.Password) > 15 {
-		return c.Status(400).JSON(map[string]interface{}{
-			"message": "password length should be less then 16",
-		})
+		lib.ErrorJson(w, http.StatusBadRequest, "password length should be less then 16", "")
+		return
 	}
 
 	var user model.User
 	var passwordHash string
 
 	getUserDetailsQuery := `SELECT id, name, email, "inrBalance", "solanaBalance", password  FROM public.users WHERE email = $1`
-	err = lib.Pool.QueryRow(c.Context(), getUserDetailsQuery, body.Identifier).Scan(&user.Id, &user.Name, &user.Email, &user.INRBalance, &user.SolanaBalance, &passwordHash)
+	err = lib.Pool.QueryRow(r.Context(), getUserDetailsQuery, body.Identifier).Scan(&user.Id, &user.Name, &user.Email, &user.INRBalance, &user.SolanaBalance, &passwordHash)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			newUserId, err := uuid.NewRandom()
 			if err != nil {
-				return c.Status(500).JSON(map[string]interface{}{
-					"message": err.Error(),
-				})
+				lib.ErrorJson(w, http.StatusBadRequest, err.Error(), "")
+				return
 			}
 			passwordHash = lib.HashString(body.Password)
-			err = lib.Pool.QueryRow(c.Context(), "INSERT INTO public.users (id, name, email, password) VALUES ($1, $2, $3, $4) RETURNING id, name, email", newUserId.String(), body.Identifier, body.Identifier, passwordHash).Scan(&user.Id, &user.Name, &user.Email)
+			err = lib.Pool.QueryRow(r.Context(), "INSERT INTO public.users (id, name, email, password) VALUES ($1, $2, $3, $4) RETURNING id, name, email", newUserId.String(), body.Identifier, body.Identifier, passwordHash).Scan(&user.Id, &user.Name, &user.Email)
 			if err != nil {
-				return c.Status(500).JSON(map[string]interface{}{
-					"message": err.Error(),
-				})
+				lib.ErrorJson(w, http.StatusBadRequest, err.Error(), "")
+				return
 			}
 			token, err := lib.GenerateToken(user.Id)
 			if err != nil {
-				return c.Status(500).JSON(map[string]interface{}{
-					"message": err.Error(),
-				})
+				lib.ErrorJson(w, http.StatusBadRequest, err.Error(), "")
+				return
 			}
-			return c.Status(200).JSON(map[string]interface{}{
+			lib.WriteJson(w, http.StatusOK, map[string]interface{}{
 				"message": "Registered successfully",
 				"token":   token,
 				"data":    user,
 			})
+			return
 		} else {
-			return c.Status(500).JSON(map[string]interface{}{
-				"message": err.Error(),
-			})
+			lib.ErrorJson(w, http.StatusBadRequest, err.Error(), "")
+			return
 		}
 	}
 	currentPasswordHash := lib.HashString(body.Password)
 	token, err := lib.GenerateToken(user.Id)
 	if err != nil {
-		return c.Status(500).JSON(map[string]interface{}{
-			"message": err.Error(),
-		})
+		lib.ErrorJson(w, http.StatusBadRequest, err.Error(), "")
+		return
 	}
 
 	if passwordHash != currentPasswordHash {
-		return c.Status(400).JSON(map[string]interface{}{
-			"message": errors.New("invalid password"),
-		})
+		lib.ErrorJson(w, http.StatusBadRequest, "invalid password", "")
+		return
 	}
 
-	return c.Status(200).JSON(map[string]interface{}{
+	lib.WriteJson(w, http.StatusOK, map[string]interface{}{
 		"message": "Login successfully",
 		"token":   token,
 		"data":    user,

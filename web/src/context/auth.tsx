@@ -86,6 +86,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   const wallet = useWallet();
 
@@ -152,25 +153,29 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
   const togglePasswordDialog = () => setOpenPasswordDialog((prev) => !prev);
 
-  const connectSocket = (id: string) => {
-    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}/${id}`);
+  const connectSocket = () => {
+    setRetry((prev) => prev + 1);
+    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}`);
     ws.onopen = () => {
       setSocket(ws);
     };
-    ws.onclose = (e) => {
-      console.log(JSON.stringify(e));
-      wallet.disconnect();
-      setUser(null);
-      setToken(null);
-      localStorage.removeItem("token");
+    ws.onclose = () => {
+      if (retry < 6) {
+        setSocket(null);
+        connectSocket();
+      }
+      // console.log(JSON.stringify(e));
+      // wallet.disconnect();
+      // setUser(null);
+      // setToken(null);
+      // localStorage.removeItem("token");
     };
 
-    ws.onerror = (e) => {
-      console.log(JSON.stringify(e));
-      wallet.disconnect();
-      setUser(null);
-      setToken(null);
-      localStorage.removeItem("token");
+    ws.onerror = () => {
+      if (retry < 6) {
+        setSocket(null);
+        connectSocket();
+      }
     };
   };
 
@@ -193,7 +198,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
               }
             },
             onSuccess: (data) => {
-              connectSocket(data.data[0].id);
+              connectSocket();
               setUser(data.data[0]);
               setToken(_token);
               if (data.isAdmin) {
@@ -236,7 +241,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       {
         onSuccess: (data) => {
           togglePasswordDialog();
-          connectSocket(data.data.id);
+          connectSocket();
           setUser(data.data);
           setToken(data.token);
           localStorage.setItem("token", data.token);

@@ -1,11 +1,14 @@
 package auth
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"flappy-bird-server/lib"
+	"net/http"
 )
 
-func Router(api fiber.Router) {
-	authRoute := api.Group("/auth")
-
-	authRoute.Post("/", authenticate)
+func Handler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		authenticate(w, r)
+		return
+	}
+	lib.ErrorJson(w, 405, "Method not allowed", "")
 }

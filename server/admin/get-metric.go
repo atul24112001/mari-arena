@@ -2,8 +2,9 @@ package admin
 
 import (
 	gameManager "flappy-bird-server/game-manager"
-
-	"github.com/gofiber/fiber/v2"
+	"flappy-bird-server/lib"
+	"flappy-bird-server/middleware"
+	"net/http"
 )
 
 type Game struct {
@@ -12,7 +13,18 @@ type Game struct {
 	Users  []string `json:"users"`
 }
 
-func getMetrics(c *fiber.Ctx) error {
+func GetMetrics(w http.ResponseWriter, r *http.Request) {
+	user, err := middleware.CheckAccess(w, r)
+	if err != nil {
+		lib.ErrorJson(w, http.StatusUnauthorized, "Unauthorized", "")
+		return
+	}
+
+	if !user.IsAdmin {
+		lib.ErrorJson(w, http.StatusUnauthorized, "Unauthorized", "")
+		return
+	}
+
 	ongoingGames := []Game{}
 	for gameId, game := range gameManager.GetInstance().StartedGames {
 		users := make([]string, 0, len(game.Users))
@@ -32,7 +44,7 @@ func getMetrics(c *fiber.Ctx) error {
 		activeUsers = append(activeUsers, k)
 	}
 
-	return c.Status(200).JSON(map[string]interface{}{
+	lib.WriteJson(w, http.StatusOK, map[string]interface{}{
 		"message": "success",
 		"data": map[string]interface{}{
 			"ongoingGames": ongoingGames,

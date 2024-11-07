@@ -14,7 +14,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
 )
 
@@ -63,41 +62,36 @@ func ReadJsonFromBody(r *http.Request, w http.ResponseWriter, body any) error {
 	return nil
 }
 
-func WriteJson(w http.ResponseWriter, status int, data any, headers ...http.Header) error {
-	out, err := json.Marshal(data)
+func WriteJson(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func ErrorJson(w http.ResponseWriter, status int, message string, fileName string) error {
+	if fileName != "" {
+		ErrorLogger(message, fileName)
+	}
+
+	out, err := json.Marshal(map[string]interface{}{
+		"message": message,
+	})
 	if err != nil {
 		return err
 	}
 
-	if len(headers) > 0 {
-		for key, value := range headers[0] {
-			w.Header()[key] = value
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if status != http.StatusOK {
-		w.WriteHeader(status)
-	}
+	w.WriteHeader(status)
 	_, err = w.Write(out)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
-func ErrorJson(c *fiber.Ctx, status int, message string, fileName string) error {
-	if fileName != "" {
-		ErrorLogger(message, fileName)
-	}
-	return c.Status(status).JSON(map[string]interface{}{
-		"message": message,
-	})
-}
-
-func ErrorJsonWithCode(w http.ResponseWriter, err error, status ...int) error {
+func ErrorJsonWithCode(w http.ResponseWriter, err error, status ...int) {
 	log.Println(err.Error())
 	statusCode := http.StatusBadRequest
 
@@ -109,7 +103,7 @@ func ErrorJsonWithCode(w http.ResponseWriter, err error, status ...int) error {
 	payload.Error = true
 	payload.Message = err.Error()
 
-	return WriteJson(w, statusCode, payload)
+	WriteJson(w, statusCode, payload)
 }
 
 func ErrorLogger(newLine string, fileName string) {

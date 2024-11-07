@@ -2,13 +2,24 @@ package admin
 
 import (
 	"flappy-bird-server/lib"
-
-	"github.com/gofiber/fiber/v2"
+	"flappy-bird-server/middleware"
+	"net/http"
 )
 
-func updateUnderMaintenance(c *fiber.Ctx) error {
+func UpdateUnderMaintenance(w http.ResponseWriter, r *http.Request) {
+	user, err := middleware.CheckAccess(w, r)
+	if err != nil {
+		lib.ErrorJson(w, http.StatusUnauthorized, "Unauthorized", "")
+		return
+	}
+
+	if !user.IsAdmin {
+		lib.ErrorJson(w, http.StatusUnauthorized, "Unauthorized", "")
+		return
+	}
+
 	lib.UnderMaintenance = !lib.UnderMaintenance
-	return c.JSON(map[string]interface{}{
+	lib.WriteJson(w, http.StatusOK, map[string]interface{}{
 		"message":       "Maintenance status updated successfully",
 		"currentStatus": lib.UnderMaintenance,
 	})
