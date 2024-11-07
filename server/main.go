@@ -16,11 +16,15 @@ import (
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 func handleWebSocket(conn *websocket.Conn) {
 	var userId = conn.Params("id")
-
+	log.Println("handler", userId)
+	defer func() {
+		conn.Close()
+	}()
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -72,19 +76,7 @@ func main() {
 	lib.ConnectDB()
 
 	app := fiber.New()
-
-	app.Use("/ws", func(c *fiber.Ctx) error {
-		if websocket.IsWebSocketUpgrade(c) {
-			c.Locals("allowed", true)
-			return c.Next()
-		}
-		return fiber.ErrUpgradeRequired
-	})
-
-	app.Get("/ws/:id", websocket.New(handleWebSocket, websocket.Config{
-		Origins: []string{os.Getenv("FRONTEND_URL")},
-	}))
-
+	app.Use(logger.New())
 	api := app.Group("/api")
 
 	transaction.Router(api)
@@ -97,6 +89,19 @@ func main() {
 	auth.Router(api)
 	gametype.Router(api)
 	admin.Router(api)
+
+	app.Use(func(c *fiber.Ctx) error {
+		if websocket.IsWebSocketUpgrade(c) {
+			c.Locals("allowed", true)
+			log.Println("Upgrade ws")
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
+	})
+
+	app.Get("/ws/:id", websocket.New(handleWebSocket, websocket.Config{
+		Origins: []string{os.Getenv("FRONTEND_URL")},
+	}))
 
 	log.Fatal(app.Listen(":8080"))
 }
