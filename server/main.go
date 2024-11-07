@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flappy-bird-server/admin"
 	"flappy-bird-server/auth"
 	gameManager "flappy-bird-server/game-manager"
 	gametype "flappy-bird-server/game-type"
@@ -9,17 +10,17 @@ import (
 	"flappy-bird-server/transaction"
 	"flappy-bird-server/user"
 	"log"
-	"net/http"
 	"os"
 	"runtime"
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
 func handleWebSocket(conn *websocket.Conn) {
-	log.Println()
 	var userId = conn.Params("id")
+
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -42,11 +43,22 @@ func handleWebSocket(conn *websocket.Conn) {
 			return
 		}
 
+		if m["event"] == "ping" {
+			user, exist := gameManager.GetInstance().GetUser(userId)
+			if exist {
+				user.SendMessage("pong", map[string]interface{}{})
+			}
+		}
+
 		switch messageType {
 		case "add-user":
-			gameManager.GetInstance().AddUser(userId, messageData["publicKey"].(string), conn)
+			if !lib.UnderMaintenance {
+				gameManager.GetInstance().AddUser(userId, messageData["publicKey"].(string), conn)
+			}
 		case "join-random-game":
-			gameManager.GetInstance().JoinGame(userId, messageData["gameTypeId"].(string))
+			if !lib.UnderMaintenance {
+				gameManager.GetInstance().JoinGame(userId, messageData["gameTypeId"].(string))
+			}
 		case "update-board":
 			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), userId)
 		case "game-over":
@@ -55,34 +67,11 @@ func handleWebSocket(conn *websocket.Conn) {
 	}
 }
 
-func httpCorsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", os.Getenv("FRONTEND_URL"))
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
 func main() {
 	runtime.GOMAXPROCS(1)
 	lib.ConnectDB()
 
 	app := fiber.New()
-	app.Use(func(c *fiber.Ctx) error {
-		origin, ok := c.Locals("origin").(string)
-		if origin != os.Getenv("FRONTEND_URL") || !ok {
-			return c.Status(403).JSON(map[string]interface{}{
-				"message": "Cors error",
-			})
-		}
-		return c.Next()
-	})
 
 	app.Use("/ws", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
@@ -92,14 +81,22 @@ func main() {
 		return fiber.ErrUpgradeRequired
 	})
 
-	app.Get("/ws/:id", websocket.New(handleWebSocket))
+	app.Get("/ws/:id", websocket.New(handleWebSocket, websocket.Config{
+		Origins: []string{os.Getenv("FRONTEND_URL")},
+	}))
 
 	api := app.Group("/api")
+
 	transaction.Router(api)
+
+	api.Use(cors.New(cors.Config{
+		AllowOrigins: os.Getenv("FRONTEND_URL"),
+	}))
 
 	user.Router(api)
 	auth.Router(api)
 	gametype.Router(api)
+	admin.Router(api)
 
 	log.Fatal(app.Listen(":8080"))
 }

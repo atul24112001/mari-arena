@@ -17,7 +17,7 @@ type AuthenticateRequestBody struct {
 
 func authenticate(c *fiber.Ctx) error {
 	var body AuthenticateRequestBody
-	err := c.BodyParser(body)
+	err := c.BodyParser(&body)
 	if err != nil {
 		return c.Status(400).JSON(map[string]interface{}{
 			"message": err.Error(),

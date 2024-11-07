@@ -95,7 +95,10 @@ func (gameManger *GameManager) CreateGame(maxUserCount int, winnerPrice int, ent
 }
 
 func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
-	targetUser, _ := gameManger.GetUser(userId)
+	targetUser, exist := gameManger.GetUser(userId)
+	if !exist {
+		return
+	}
 	newGameMap, newGameMapExist := gameManger.NewGame[gameTypeId]
 	log.Println(newGameMap.Game.Users)
 	if !newGameMapExist {
@@ -300,18 +303,9 @@ func (gameManger *GameManager) DeleteGame(gameId string) {
 }
 
 func (gameManager *GameManager) UpdateBoard(gameId string, userId string) {
-	// targetString := fmt.Sprintf("%s update score by 1 in %s", userId, gameId)
-	// hash := lib.HashString(targetString)
-
-	// if hash != token {
-	// 	targetUser, userExist := gameManager.GetUser(userId)
-	// 	if userExist {
-	// 		targetUser.SendMessage("error", map[string]interface{}{
-	// 			"message": "Invalid request",
-	// 		})
-	// 	}
-	// 	return
-	// }
+	if _, exist := gameManager.GetUser(userId); !exist {
+		return
+	}
 	targetGame := gameManager.GetGame(gameId)
 	targetGame.UpdateScore(userId)
 
@@ -326,7 +320,6 @@ func (gameManager *GameManager) UpdateBoard(gameId string, userId string) {
 
 func (gameManager *GameManager) GameOver(gameId string, userId string) {
 	targetGame := gameManager.GetGame(gameId)
-	log.Println("Game over", userId)
 	targetGame.GameOver(userId)
 
 	var alivePlayers = 0

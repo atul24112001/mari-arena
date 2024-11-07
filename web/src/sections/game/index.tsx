@@ -26,7 +26,7 @@ type Game = {
 
 export default function GameClient({ gameType }: Props) {
   const gameEngine = useRef<GameEngineRef>(null);
-  const { user, socket, setUser, sendMessage } = useAuth();
+  const { user, socket, setUser, sendMessage, underMaintenance } = useAuth();
   const router = useRouter();
 
   const [entities, setEntities] = useState<Entities>({});
@@ -39,6 +39,13 @@ export default function GameClient({ gameType }: Props) {
   const [running, setRunning] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (underMaintenance) {
+      toast("Currently under maintenance, Please comeback after sometime");
+      router.push("/");
+    }
+  }, [underMaintenance]);
 
   useEffect(() => {
     if (socket && confirmed) {

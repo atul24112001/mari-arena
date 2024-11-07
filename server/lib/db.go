@@ -13,6 +13,7 @@ import (
 const AdminPublicKey = "CVdndsAGyNj8BvLhtrQBLMtrwEgy53ACXFQmQMfH2MFQ"
 
 var Pool *pgxpool.Pool
+var UnderMaintenance = false
 
 func ConnectDB() {
 	err := godotenv.Load(".env")

@@ -8,6 +8,8 @@ import (
 )
 
 func getGameTypes(c *fiber.Ctx) error {
+	gameTypes := []model.GameType{}
+
 	rows, err := lib.Pool.Query(c.Context(), "SELECT id, title, entry, winner, currency FROM public.gametypes")
 	if err != nil {
 		return c.Status(500).JSON(map[string]interface{}{
@@ -16,7 +18,6 @@ func getGameTypes(c *fiber.Ctx) error {
 	}
 	defer rows.Close()
 
-	gameTypes := []model.GameType{}
 	for rows.Next() {
 		var i model.GameType
 		if err := rows.Scan(&i.Id, &i.Title, &i.Entry, &i.Winner, &i.Currency); err != nil {
