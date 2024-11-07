@@ -1,15 +1,14 @@
 package user
 
-import "net/http"
+import (
+	"flappy-bird-server/middleware"
 
-func Handler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		verifyUser2(w, r)
-		return
-	}
-	if r.Method == http.MethodPatch {
-		updatePassword(w, r)
-		return
-	}
-	http.Error(w, "method not allowed", 400)
+	"github.com/gofiber/fiber/v2"
+)
+
+func Router(api fiber.Router) {
+	userRoute := api.Group("/user")
+
+	userRoute.Post("/", middleware.CheckAccess, verifyUser)
+	userRoute.Post("/", middleware.CheckAccess, updatePassword)
 }

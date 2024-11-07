@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gofiber/contrib/websocket"
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 )
 
 type NewGame struct {
@@ -95,7 +95,10 @@ func (gameManger *GameManager) CreateGame(maxUserCount int, winnerPrice int, ent
 }
 
 func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
-	targetUser, _ := gameManger.GetUser(userId)
+	targetUser, exist := gameManger.GetUser(userId)
+	if !exist {
+		return
+	}
 	newGameMap, newGameMapExist := gameManger.NewGame[gameTypeId]
 	log.Println(newGameMap.Game.Users)
 	if !newGameMapExist {
@@ -300,18 +303,9 @@ func (gameManger *GameManager) DeleteGame(gameId string) {
 }
 
 func (gameManager *GameManager) UpdateBoard(gameId string, userId string) {
-	// targetString := fmt.Sprintf("%s update score by 1 in %s", userId, gameId)
-	// hash := lib.HashString(targetString)
-
-	// if hash != token {
-	// 	targetUser, userExist := gameManager.GetUser(userId)
-	// 	if userExist {
-	// 		targetUser.SendMessage("error", map[string]interface{}{
-	// 			"message": "Invalid request",
-	// 		})
-	// 	}
-	// 	return
-	// }
+	if _, exist := gameManager.GetUser(userId); !exist {
+		return
+	}
 	targetGame := gameManager.GetGame(gameId)
 	targetGame.UpdateScore(userId)
 
@@ -326,7 +320,6 @@ func (gameManager *GameManager) UpdateBoard(gameId string, userId string) {
 
 func (gameManager *GameManager) GameOver(gameId string, userId string) {
 	targetGame := gameManager.GetGame(gameId)
-	log.Println("Game over", userId)
 	targetGame.GameOver(userId)
 
 	var alivePlayers = 0
@@ -354,7 +347,7 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 			if err != nil {
 				log.Println(err.Error())
 				newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s-userId_%s-amount-%d\n", gameId, "completed", userId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine)
+				lib.ErrorLogger(newLine, "errors.txt")
 				return
 			}
 
@@ -363,7 +356,7 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 			if err != nil {
 				log.Println(err.Error())
 				newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine)
+				lib.ErrorLogger(newLine, "errors.txt")
 				return
 			}
 		}
@@ -429,7 +422,7 @@ func (gameManager *GameManager) GameOver2(gameId string, userId string) {
 			)
 			if err != nil {
 				newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s\n", gameId, "completed")
-				lib.ErrorLogger(newLine)
+				lib.ErrorLogger(newLine, "errors.txt")
 				return
 			}
 
@@ -441,7 +434,7 @@ func (gameManager *GameManager) GameOver2(gameId string, userId string) {
 			).Scan(&newBalance)
 			if err != nil {
 				newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine)
+				lib.ErrorLogger(newLine, "errors.txt")
 			} else {
 				gameManager.DeleteGame(gameId)
 			}

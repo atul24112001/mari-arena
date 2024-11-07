@@ -7,7 +7,7 @@ export default async function Game({ params }: ServerProps) {
   const { gameId } = await Promise.resolve(params);
 
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`
+    `${process.env.NEXT_PUBLIC_API_URL}/api/game-type`
   );
   const { data } = await response.json();
 

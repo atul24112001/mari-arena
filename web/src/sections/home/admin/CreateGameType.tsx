@@ -14,11 +14,18 @@ import {
 import { useAuth } from "@/context/auth";
 import { GameType } from "@prisma/client";
 import { useMutation } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { AxiosError } from "axios";
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export default function AdminCreateGameType() {
-  const { apiClient } = useAuth();
+  const { apiClient, isAdmin, underMaintenance, toggleUnderMaintenance } =
+    useAuth();
   const [openGameTypeForm, setOpenGameTypeForm] = useState(false);
+  const [counter, setCounter] = useState({
+    activeUsers: 0,
+    ongoingGames: 0,
+  });
   const [details, setDetails] = useState<GameType>({
     currency: "INR",
     entry: 0,
@@ -51,6 +58,22 @@ export default function AdminCreateGameType() {
     });
   };
 
+  useEffect(() => {
+    if (isAdmin) {
+      try {
+        (async () => {
+          const { data } = await apiClient.get("/api/admin/metric");
+          setCounter({
+            activeUsers: data.data.activeUsers.length,
+            ongoingGames: data.data.ongoingGames.length,
+          });
+        })();
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  }, [isAdmin]);
+
   const handleAddGameType = () => {
     mutate(details, {
       onSuccess: () => {
@@ -59,10 +82,26 @@ export default function AdminCreateGameType() {
     });
   };
 
+  const toggleMaintenance = async () => {
+    try {
+      await apiClient.get("/api/admin/maintenance");
+      toggleUnderMaintenance();
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        toast(error.response?.data?.message || error.message);
+      }
+    }
+  };
+
   return (
     <Admin>
-      <div className="text-primary flex justify-center">
+      <div className="text-primary flex flex-col items-center justify-center">
         <IconButton onClick={toggleGameTypeForm}>Add Game Type</IconButton>
+        <IconButton onClick={toggleMaintenance}>
+          {underMaintenance ? "End" : "Start"} maintenance
+        </IconButton>
+        <IconButton>{counter.activeUsers} active users</IconButton>
+        <IconButton>{counter.ongoingGames} active games</IconButton>
       </div>
       <Modal
         onClose={toggleGameTypeForm}

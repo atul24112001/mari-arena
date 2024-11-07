@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
 )
 
@@ -87,16 +88,13 @@ func WriteJson(w http.ResponseWriter, status int, data any, headers ...http.Head
 	return nil
 }
 
-func ErrorJson(w http.ResponseWriter, err error) error {
-	var payload jsonResponse
-	payload.Error = true
-	payload.Message = err.Error()
-
-	// statusCode, exists := CustomErrorType[err]
-	// if exists {
-	// return WriteJson(w, statusCode, payload)
-	// }
-	return WriteJson(w, http.StatusBadRequest, payload)
+func ErrorJson(c *fiber.Ctx, status int, message string, fileName string) error {
+	if fileName != "" {
+		ErrorLogger(message, fileName)
+	}
+	return c.Status(status).JSON(map[string]interface{}{
+		"message": message,
+	})
 }
 
 func ErrorJsonWithCode(w http.ResponseWriter, err error, status ...int) error {
@@ -114,8 +112,8 @@ func ErrorJsonWithCode(w http.ResponseWriter, err error, status ...int) error {
 	return WriteJson(w, statusCode, payload)
 }
 
-func ErrorLogger(newLine string) {
-	file, err := os.OpenFile("errors.txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+func ErrorLogger(newLine string, fileName string) {
+	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
 		return

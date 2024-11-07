@@ -7,7 +7,7 @@ import { StarsBackground } from "@/components/ui/star-background";
 import { User } from "@prisma/client";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMutation } from "@tanstack/react-query";
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosError, AxiosInstance } from "axios";
 
 import {
   Dispatch,
@@ -31,7 +31,9 @@ type AuthContextType = {
   sendMessage: (type: string, data: any) => void;
   socket: WebSocket | null;
   openPasswordDialog: boolean;
+  underMaintenance: boolean;
   togglePasswordDialog: () => void;
+  toggleUnderMaintenance: () => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -42,7 +44,9 @@ const AuthContext = createContext<AuthContextType>({
   sendMessage: () => {},
   socket: null,
   openPasswordDialog: false,
+  underMaintenance: false,
   togglePasswordDialog: () => {},
+  toggleUnderMaintenance: () => {},
 });
 
 async function verifyUser(data: {
@@ -54,6 +58,7 @@ async function verifyUser(data: {
   message: string;
   token: string;
   isAdmin?: boolean;
+  underMaintenance?: boolean;
 }> {
   const response = await axios.post(
     `${process.env.NEXT_PUBLIC_API_URL}/api/user`,
@@ -77,6 +82,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
   const [token, setToken] = useState<string | null>(null);
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [underMaintenance, setUnderMaintenance] = useState(false);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -104,7 +110,6 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
   const apiClient = useMemo(() => {
     const headers: any = {};
-    console.log("apiClient", { token });
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
@@ -114,37 +119,6 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       headers,
     });
   }, [token]);
-
-  // useEffect(() => {
-  //   if (user && !socket) {
-  //     const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}/ws`);
-  //     console.log("Connected");
-  //     ws.onopen = () => {
-  //       setSocket(ws);
-  //     };
-
-  // ws.onclose = (e) => {
-  //   console.log(JSON.stringify(e));
-  //   wallet.disconnect();
-  //   setUser(null);
-  //   setToken(null);
-  //   localStorage.removeItem("token");
-  // };
-
-  // ws.onerror = (e) => {
-  //   console.log(JSON.stringify(e));
-  //   wallet.disconnect();
-  //   setUser(null);
-  //   setToken(null);
-  //   localStorage.removeItem("token");
-  // };
-
-  //     return () => {
-  //       console.log("closing");
-  //       ws.close();
-  //     };
-  //   }
-  // }, [user, socket]);
 
   const sendMessage = useCallback(
     (type: string, data: any) => {
@@ -178,8 +152,8 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
   const togglePasswordDialog = () => setOpenPasswordDialog((prev) => !prev);
 
-  const connectSocket = () => {
-    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}`);
+  const connectSocket = (id: string) => {
+    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}/${id}`);
     ws.onopen = () => {
       setSocket(ws);
     };
@@ -212,15 +186,21 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
             token: _token,
           },
           {
-            onError: () => {
+            onError: (e) => {
               wallet.disconnect();
+              if (e instanceof AxiosError) {
+                toast(e.response?.data.message);
+              }
             },
             onSuccess: (data) => {
-              connectSocket();
+              connectSocket(data.data[0].id);
               setUser(data.data[0]);
               setToken(_token);
               if (data.isAdmin) {
                 setIsAdmin(true);
+              }
+              if (data.underMaintenance) {
+                setUnderMaintenance(true);
               }
               setOpenPasswordDialog(false);
             },
@@ -256,18 +236,21 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       {
         onSuccess: (data) => {
           togglePasswordDialog();
-          connectSocket();
+          connectSocket(data.data.id);
           setUser(data.data);
           setToken(data.token);
           localStorage.setItem("token", data.token);
         },
-        onError: (error) => {
-          // @ts-ignore
-          toast(error?.response?.data?.message || error.message);
+        onError: (e) => {
+          if (e instanceof AxiosError) {
+            toast(e.response?.data.message);
+          }
         },
       }
     );
   };
+
+  const toggleUnderMaintenance = () => setUnderMaintenance((prev) => !prev);
 
   return (
     <AuthContext.Provider
@@ -280,6 +263,8 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
         socket,
         openPasswordDialog,
         togglePasswordDialog,
+        toggleUnderMaintenance,
+        underMaintenance,
       }}
     >
       <div className="h-screen dark bg-[#000] text-white  relative overflow-hidden bg-cover md:bg-contain">

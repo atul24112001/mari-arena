@@ -1,11 +1,10 @@
 package transaction
 
-import "net/http"
+import (
+	"github.com/gofiber/fiber/v2"
+)
 
-func Handler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		verifyTransaction(w, r)
-		return
-	}
-	http.Error(w, "method not allowed", 400)
+func Router(api fiber.Router) {
+	gameTypeRoute := api.Group("/transaction")
+	gameTypeRoute.Post("/", verifyTransaction)
 }
