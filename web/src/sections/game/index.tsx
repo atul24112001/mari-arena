@@ -299,7 +299,7 @@ export default function GameClient({ gameType }: Props) {
               </button>
             </div>
           ) : (
-            <div className="w-[90%]">
+            <div className="w-[90%] max-w-lg">
               {gameStartingIn !== 0 ? (
                 <p className="font-bold text-xl text-yellow-100">
                   Game starting in {gameStartingIn} sec...
