@@ -179,7 +179,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
   const togglePasswordDialog = () => setOpenPasswordDialog((prev) => !prev);
 
   const connectSocket = () => {
-    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}`);
+    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WSS}/${user?.id}`);
     ws.onopen = () => {
       setSocket(ws);
     };

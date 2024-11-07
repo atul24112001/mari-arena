@@ -1,11 +1,11 @@
 package auth
 
-import "net/http"
+import (
+	"github.com/gofiber/fiber/v2"
+)
 
-func Handler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		authenticate(w, r)
-		return
-	}
-	http.Error(w, "method not allowed", 400)
+func Router(api fiber.Router) {
+	authRoute := api.Group("/auth")
+
+	authRoute.Post("/", authenticate)
 }

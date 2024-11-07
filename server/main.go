@@ -8,33 +8,18 @@ import (
 	"flappy-bird-server/lib"
 	"flappy-bird-server/transaction"
 	"flappy-bird-server/user"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"runtime"
 
-	"github.com/gorilla/websocket"
+	"github.com/gofiber/contrib/websocket"
+	"github.com/gofiber/fiber/v2"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("origin")
-		log.Println("Origin", origin)
-		return origin == os.Getenv("FRONTEND_URL")
-	},
-}
-
-func handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("Failed to upgrade:", err)
-		return
-	}
-
-	var userId string
+func handleWebSocket(conn *websocket.Conn) {
+	log.Println()
+	var userId = conn.Params("id")
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -59,7 +44,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		switch messageType {
 		case "add-user":
-			userId = gameManager.GetInstance().AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
+			gameManager.GetInstance().AddUser(userId, messageData["publicKey"].(string), conn)
 		case "join-random-game":
 			gameManager.GetInstance().JoinGame(userId, messageData["gameTypeId"].(string))
 		case "update-board":
@@ -88,14 +73,35 @@ func main() {
 	runtime.GOMAXPROCS(1)
 	lib.ConnectDB()
 
-	http.HandleFunc("/ws", handleWebSocket)
-	http.Handle("/api/user", httpCorsMiddleware(http.HandlerFunc(user.Handler)))
-	http.Handle("/api/auth", httpCorsMiddleware(http.HandlerFunc(auth.Handler)))
-	http.Handle("/api/transaction", http.HandlerFunc(transaction.Handler))
-	http.Handle("/api/game-types", httpCorsMiddleware(http.HandlerFunc(gametype.Handler)))
+	app := fiber.New()
+	app.Use(func(c *fiber.Ctx) error {
+		origin, ok := c.Locals("origin").(string)
+		if origin != os.Getenv("FRONTEND_URL") || !ok {
+			return c.Status(403).JSON(map[string]interface{}{
+				"message": "Cors error",
+			})
+		}
+		return c.Next()
+	})
 
-	fmt.Println("WebSocket server listening on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatal("ListenAndServe error:", err)
-	}
+	app.Use("/ws", func(c *fiber.Ctx) error {
+		if websocket.IsWebSocketUpgrade(c) {
+			c.Locals("allowed", true)
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
+	})
+
+	app.Get("/ws/:id", websocket.New(handleWebSocket))
+
+	api := app.Group("/api")
+	transaction.Router(api)
+
+	user.Router(api)
+	auth.Router(api)
+	gametype.Router(api)
+
+	log.Fatal(app.Listen(":8080"))
 }
+
+// nodemon --exec go run main.go --signal SIGTERM

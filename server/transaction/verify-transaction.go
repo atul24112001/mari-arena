@@ -1,14 +1,13 @@
 package transaction
 
 import (
-	"errors"
 	gameManager "flappy-bird-server/game-manager"
 	"flappy-bird-server/lib"
 	"flappy-bird-server/model"
-	"log"
-	"net/http"
+	"fmt"
 	"os"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -25,89 +24,80 @@ type RequestBody []struct {
 	NativeTransfers []NativeTransfers `json:"nativeTransfers"`
 }
 
-func verifyTransaction(w http.ResponseWriter, r *http.Request) {
-	token := r.Header.Get("Authorization")
+func verifyTransaction(c *fiber.Ctx) error {
+	token := c.Get("Authorization")
 
 	if token != os.Getenv("HELIUS_WEBHOOK_SECRET") {
-		log.Println("Unauth", "token", token, "envToken", os.Getenv("HELIUS_WEBHOOK_SECRET"))
-		lib.ErrorJsonWithCode(w, errors.New("unauthorized"), http.StatusBadRequest)
-		return
+		return c.Status(fiber.StatusUnauthorized).JSON(map[string]interface{}{
+			"message": "Unauthorized",
+		})
 	}
 
 	var body RequestBody
-	if err := lib.ReadJsonFromBody(r, w, &body); err != nil {
-		lib.ErrorJsonWithCode(w, err, http.StatusBadRequest)
-		return
+	err := c.BodyParser(body)
+	if err != nil {
+		return c.Status(400).JSON(map[string]interface{}{
+			"message": err.Error(),
+		})
 	}
 	if len(body) == 0 {
-		lib.ErrorJsonWithCode(w, errors.New("Something wen wrong, helius boy length is 0"), http.StatusBadRequest)
-		return
+		return c.Status(500).JSON(map[string]interface{}{
+			"message": err.Error(),
+		})
 	}
 
 	transaction := body[0]
 	var transactionAlreadyVerified model.Transaction
-	log.Println(transaction.Signature)
-	log.Println(transaction.Type)
 	var user model.User
-	err := lib.Pool.QueryRow(r.Context(), `SELECT id, signature, amount, "userId" FROM public.transactions WHERE signature = $1`, transaction.Signature).Scan(&transactionAlreadyVerified.Id, &transactionAlreadyVerified.Signature, &transactionAlreadyVerified.Amount, &transactionAlreadyVerified.UserId)
+
+	err = lib.Pool.QueryRow(c.Context(), `SELECT id, signature, amount, "userId" FROM public.transactions WHERE signature = $1`, transaction.Signature).Scan(&transactionAlreadyVerified.Id, &transactionAlreadyVerified.Signature, &transactionAlreadyVerified.Amount, &transactionAlreadyVerified.UserId)
+	newLine := fmt.Sprintf("ERROR_TRANSACTION-%s", transaction.Signature)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			// _tac, err := lib.GetTransaction(transaction.Signature)
-			// log.Printf("Fetched results", _tac.Amount)
 			if len(transaction.NativeTransfers) == 0 {
-				lib.ErrorJsonWithCode(w, errors.New("No native transfer found"), http.StatusBadRequest)
-				return
+				return lib.ErrorJson(c, 500, newLine+"No native transfer found\n", "transaction.txt")
+
 			}
 			transfer := transaction.NativeTransfers[0]
-
+			newLine += fmt.Sprintf("-publicKey-%s-", transfer.FromUserAccount)
 			if transfer.ToUserAccount != lib.AdminPublicKey {
-				lib.ErrorJsonWithCode(w, errors.New("Invalid transaction: please send solana to "+lib.AdminPublicKey), http.StatusBadRequest)
-				return
+				return lib.ErrorJson(c, 500, newLine+"Invalid transaction: please send solana to "+lib.AdminPublicKey+"\n", "transaction.txt")
 			}
 
-			err = lib.Pool.QueryRow(r.Context(), `SELECT id, name, email, "inrBalance", "solanaBalance" FROM public.users WHERE email = $1`, transfer.FromUserAccount).Scan(&user.Id, &user.Name, &user.Email, &user.INRBalance, &user.SolanaBalance)
+			err = lib.Pool.QueryRow(c.Context(), `SELECT id, name, email, "inrBalance", "solanaBalance" FROM public.users WHERE email = $1`, transfer.FromUserAccount).Scan(&user.Id, &user.Name, &user.Email, &user.INRBalance, &user.SolanaBalance)
 			if err != nil {
-				lib.ErrorJsonWithCode(w, errors.New("internal server error"), http.StatusBadRequest)
-				return
+				return lib.ErrorJson(c, 500, newLine+err.Error()+"\n", "transaction.txt")
 			}
 
 			var updatedBalance int
 			var amount uint
 			transactionId, err := uuid.NewRandom()
 			if err != nil {
-				lib.ErrorJsonWithCode(w, errors.New("Something went wrong while creating transaction id"), http.StatusBadRequest)
-				return
+				return lib.ErrorJson(c, 500, newLine+"Something went wrong while creating transaction id\n", "transaction.txt")
 			}
-			if err = lib.Pool.QueryRow(r.Context(), `INSERT INTO public.transactions (id, amount, signature, "userId") VALUES ($1, $2, $3, $4) RETURNING amount`, transactionId, transfer.Amount, transaction.Signature, user.Id).Scan(&amount); err != nil {
-				lib.ErrorJsonWithCode(w, errors.New("Something went wrong while creating transaction"), http.StatusBadRequest)
-				log.Println(err.Error())
-				return
+			if err = lib.Pool.QueryRow(c.Context(), `INSERT INTO public.transactions (id, amount, signature, "userId") VALUES ($1, $2, $3, $4) RETURNING amount`, transactionId, transfer.Amount, transaction.Signature, user.Id).Scan(&amount); err != nil {
+				return lib.ErrorJson(c, 500, newLine+"Something went wrong while creating transaction id\n", "transaction.txt")
+
 			}
-			err = lib.Pool.QueryRow(r.Context(), `UPDATE public.users SET "solanaBalance" = $2 WHERE id = $1 RETURNING "solanaBalance"`, user.Id, user.SolanaBalance+amount).Scan(&updatedBalance)
+			err = lib.Pool.QueryRow(c.Context(), `UPDATE public.users SET "solanaBalance" = $2 WHERE id = $1 RETURNING "solanaBalance"`, user.Id, user.SolanaBalance+amount).Scan(&updatedBalance)
 			if err != nil {
-				log.Println(err.Error())
-				lib.ErrorJsonWithCode(w, errors.New("Something went wrong while update user solana balance"), http.StatusBadRequest)
-				return
+				return lib.ErrorJson(c, 500, newLine+"Something went wrong while update user solana balance\n", "transaction.txt")
+
 			}
 			user.SolanaBalance = uint(updatedBalance)
 		} else {
-			log.Println(err.Error())
-			lib.ErrorJsonWithCode(w, errors.New("Something went wrong while fetching transaction details"), http.StatusBadRequest)
-			return
+			return lib.ErrorJson(c, 500, newLine+"Something went wrong while fetching transaction details\n", "transaction.txt")
 		}
 	} else {
-		err = lib.Pool.QueryRow(r.Context(), `SELECT id, name, email, "inrBalance", "solanaBalance" FROM public.users WHERE id = $1`, transactionAlreadyVerified.UserId).Scan(&user.Id, &user.Name, &user.Email, &user.INRBalance, &user.SolanaBalance)
-		if err != nil {
-			lib.ErrorJsonWithCode(w, errors.New("internal server error"), http.StatusBadRequest)
-			return
-		}
+		err = lib.Pool.QueryRow(c.Context(), `SELECT id, name, email, "inrBalance", "solanaBalance" FROM public.users WHERE id = $1`, transactionAlreadyVerified.UserId).Scan(&user.Id, &user.Name, &user.Email, &user.INRBalance, &user.SolanaBalance)
+		return lib.ErrorJson(c, 500, newLine+err.Error()+"\n", "transaction.txt")
 	}
 
 	userWs, userWsExist := gameManager.GetInstance().GetUser(user.Id)
 	if userWsExist {
 		userWs.SendMessage("refresh", map[string]interface{}{})
 	}
-	lib.WriteJson(w, http.StatusOK, map[string]interface{}{
+	return c.Status(200).JSON(map[string]interface{}{
 		"message": "transaction verified",
 		"data":    []model.User{user},
 	})

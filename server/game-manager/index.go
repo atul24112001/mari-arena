@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gofiber/contrib/websocket"
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 )
 
 type NewGame struct {
@@ -354,7 +354,7 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 			if err != nil {
 				log.Println(err.Error())
 				newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s-userId_%s-amount-%d\n", gameId, "completed", userId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine)
+				lib.ErrorLogger(newLine, "errors.txt")
 				return
 			}
 
@@ -363,7 +363,7 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 			if err != nil {
 				log.Println(err.Error())
 				newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine)
+				lib.ErrorLogger(newLine, "errors.txt")
 				return
 			}
 		}
@@ -429,7 +429,7 @@ func (gameManager *GameManager) GameOver2(gameId string, userId string) {
 			)
 			if err != nil {
 				newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s\n", gameId, "completed")
-				lib.ErrorLogger(newLine)
+				lib.ErrorLogger(newLine, "errors.txt")
 				return
 			}
 
@@ -441,7 +441,7 @@ func (gameManager *GameManager) GameOver2(gameId string, userId string) {
 			).Scan(&newBalance)
 			if err != nil {
 				newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine)
+				lib.ErrorLogger(newLine, "errors.txt")
 			} else {
 				gameManager.DeleteGame(gameId)
 			}

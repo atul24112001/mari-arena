@@ -6,7 +6,7 @@ import AdminCreateGameType from "@/sections/home/admin/CreateGameType";
 
 export default async function Home() {
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`,
+    `${process.env.NEXT_PUBLIC_API_URL}/api/game-type`,
     { cache: "no-cache" }
   );
   const { data } = await response.json();

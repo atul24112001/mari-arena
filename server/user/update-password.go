@@ -1,42 +1,48 @@
 package user
 
 import (
-	"errors"
 	"flappy-bird-server/lib"
-	"flappy-bird-server/middleware"
-	"net/http"
+	"flappy-bird-server/model"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 type UpdatePasswordRequestBody struct {
 	Password string `json:"password"`
 }
 
-func updatePassword(w http.ResponseWriter, r *http.Request) {
-	user, err := middleware.CheckAccess(w, r)
-	if err != nil {
-		lib.ErrorJson(w, err)
-		return
+func updatePassword(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(model.User)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(map[string]interface{}{
+			"message": "Unauthorized",
+		})
 	}
 
 	var body UpdatePasswordRequestBody
-	err = lib.ReadJsonFromBody(r, w, &body)
+	err := c.BodyParser(body)
 	if err != nil {
-		lib.ErrorJson(w, err)
-		return
+		return c.Status(500).JSON(map[string]interface{}{
+			"message": err.Error(),
+		})
 	}
 
 	if len(body.Password) < 8 {
-		lib.ErrorJson(w, errors.New("password length should be more than 7"))
-		return
+		return c.Status(400).JSON(map[string]interface{}{
+			"message": "password length should be more than 7",
+		})
+
 	}
 
 	hashedPassword := lib.HashString(user.Email + body.Password)
-	_, err = lib.Pool.Exec(r.Context(), "UPDATE public.users SET password = $2 WHERE id = $1", user.Id, hashedPassword)
+	_, err = lib.Pool.Exec(c.Context(), "UPDATE public.users SET password = $2 WHERE id = $1", user.Id, hashedPassword)
 	if err != nil {
-		lib.ErrorJson(w, err)
-		return
+		return c.Status(500).JSON(map[string]interface{}{
+			"message": err.Error(),
+		})
 	}
-	lib.WriteJson(w, http.StatusOK, map[string]interface{}{
+
+	return c.Status(fiber.StatusOK).JSON(map[string]interface{}{
 		"message": "Password updated successfully",
 	})
 }

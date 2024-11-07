@@ -3,14 +3,16 @@ package gametype
 import (
 	"flappy-bird-server/lib"
 	"flappy-bird-server/model"
-	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
-func getGameTypes(w http.ResponseWriter, r *http.Request) {
-	rows, err := lib.Pool.Query(r.Context(), "SELECT id, title, entry, winner, currency FROM public.gametypes")
+func getGameTypes(c *fiber.Ctx) error {
+	rows, err := lib.Pool.Query(c.Context(), "SELECT id, title, entry, winner, currency FROM public.gametypes")
 	if err != nil {
-		lib.ErrorJsonWithCode(w, err, http.StatusInternalServerError)
-		return
+		return c.Status(500).JSON(map[string]interface{}{
+			"message": err.Error(),
+		})
 	}
 	defer rows.Close()
 
@@ -18,13 +20,14 @@ func getGameTypes(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var i model.GameType
 		if err := rows.Scan(&i.Id, &i.Title, &i.Entry, &i.Winner, &i.Currency); err != nil {
-			lib.ErrorJsonWithCode(w, err, http.StatusInternalServerError)
-			return
+			return c.Status(500).JSON(map[string]interface{}{
+				"message": err.Error(),
+			})
 		}
 		gameTypes = append(gameTypes, i)
 	}
 
-	lib.WriteJson(w, http.StatusOK, map[string]interface{}{
+	return c.Status(200).JSON(map[string]interface{}{
 		"data":    gameTypes,
 		"message": "success",
 	})
