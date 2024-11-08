@@ -105,6 +105,11 @@ export default function GameClient({ gameType }: Props) {
             };
           });
           router.push("/");
+        } else if (type === "error") {
+          toast(data?.message || "Something went wrong", {
+            duration: 2000,
+          });
+          router.push("/");
         }
       };
     }

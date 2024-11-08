@@ -24,7 +24,6 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("origin")
-		log.Println("Origin", origin)
 		return origin == os.Getenv("FRONTEND_URL")
 	},
 }
@@ -33,11 +32,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade:", err)
-		return
-	}
-
-	if lib.UnderMaintenance {
-		log.Println("Under maintenance:", err)
 		return
 	}
 
@@ -68,7 +62,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case "add-user":
 			userId = gameManager.GetInstance().AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
 		case "join-random-game":
-			gameManager.GetInstance().JoinGame(userId, messageData["gameTypeId"].(string))
+			if lib.UnderMaintenance {
+				targetUser, exist := gameManager.GetInstance().GetUser(userId)
+				if exist {
+					targetUser.SendMessage("error", map[string]interface{}{
+						"message": "We are under maintenance please try after some time",
+					})
+				}
+			} else {
+				gameManager.GetInstance().JoinGame(userId, messageData["gameTypeId"].(string))
+			}
 		case "update-board":
 			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), userId)
 		case "game-over":

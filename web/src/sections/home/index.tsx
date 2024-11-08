@@ -114,7 +114,7 @@ export default function ClientHomePage() {
                 )}
                 {underMaintenance && (
                   <div className=" text-sm font-bold px-2 text-red-500 rounded-lg py-1">
-                    We are currently under maintenance so please try to add
+                    We are currently under maintenance so, please try to add
                     funds after sometime
                   </div>
                 )}
