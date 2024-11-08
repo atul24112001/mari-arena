@@ -14,13 +14,9 @@ export function IconButton({
   };
   return (
     <button
-      disabled={disabled}
+      disabled={disabled || loading}
       className={`${colors[color]} flex gap-1 text-xs md:text-sm font-bold  p-2 rounded-full `}
-      onClick={() => {
-        if (!loading) {
-          onClick?.();
-        }
-      }}
+      onClick={onClick}
     >
       {loading ? <Spinner /> : children}
     </button>

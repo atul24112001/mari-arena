@@ -26,7 +26,7 @@ export default function ClientHomePage() {
   const rechargeAmountRef = useRef<HTMLInputElement>(null);
 
   const [openRechargeModal, setOpenRechargeModal] = useState(false);
-  const { user } = useAuth();
+  const { user, underMaintenance } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -112,6 +112,12 @@ export default function ClientHomePage() {
                     {error}
                   </div>
                 )}
+                {underMaintenance && (
+                  <div className=" text-sm font-bold px-2 text-red-500 rounded-lg py-1">
+                    We are currently under maintenance so please try to add
+                    funds after sometime
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <IconButton color="error" onClick={toggleRechargeModal}>
@@ -119,7 +125,7 @@ export default function ClientHomePage() {
                 </IconButton>
                 <IconButton
                   loading={loading}
-                  disabled={loading}
+                  disabled={underMaintenance}
                   onClick={addBalanceHandler}
                 >
                   Submit
