@@ -298,7 +298,12 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
               </div>
 
               <div className="flex justify-center mt-3">
-                <IconButton onClick={authenticate}>Unlock</IconButton>
+                <IconButton
+                  loading={authenticateMutant.status == "pending"}
+                  onClick={authenticate}
+                >
+                  Unlock
+                </IconButton>
               </div>
             </div>
           </div>

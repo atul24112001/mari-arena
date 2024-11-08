@@ -139,14 +139,9 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 	}
 
 	newGame := newGameMap.Game
-	log.Println("Here 136")
+	log.Println("Here 136", newGame)
 	if newGame.CurrentUserCount == newGame.MaxUserCount {
 		log.Println("Game is full")
-		return
-	}
-
-	if newGame.Users[userId] {
-		log.Println("User already exist")
 		return
 	}
 
@@ -169,14 +164,16 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 		return
 	}
 
-	_, err = lib.Pool.Exec(context.Background(), `INSERT INTO public.participants ("userId", "gameId") VALUES ($1, $2)`, userId, newGame.Id)
+	if !newGame.Users[userId] {
+		_, err = lib.Pool.Exec(context.Background(), `INSERT INTO public.participants ("userId", "gameId") VALUES ($1, $2)`, userId, newGame.Id)
 
-	if err != nil {
-		log.Println("178", err.Error())
-		targetUser.SendMessage("error", map[string]interface{}{
-			"message": "Something went wrong while adding participant in db",
-		})
-		return
+		if err != nil {
+			log.Println("178", err.Error())
+			targetUser.SendMessage("error", map[string]interface{}{
+				"message": "Something went wrong while adding participant in db",
+			})
+			return
+		}
 	}
 
 	keys := make([]string, 0, newGame.MaxUserCount)
@@ -203,12 +200,11 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 		Points:  0,
 	}
 
-	log.Println("Game joined " + userId + " " + newGame.Id)
-
 	newGameMap.Game = newGame
 	gameManger.NewGame[gameTypeId] = newGameMap
 
-	log.Println(newGame.CurrentUserCount, newGame.MaxUserCount)
+	log.Printf("Game joined userId %s - gameId %s", userId, newGame.Id)
+	log.Printf("current: %d - max: %d", newGame.CurrentUserCount, newGame.MaxUserCount)
 	if newGame.CurrentUserCount == newGame.MaxUserCount {
 		newGame.Status = "ongoing"
 		gameManger.StartedGames[newGame.Id] = newGame

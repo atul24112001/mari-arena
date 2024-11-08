@@ -104,7 +104,7 @@ func main() {
 	http.Handle("/api/game-types", httpCorsMiddleware(http.HandlerFunc(gametype.Handler)))
 	http.Handle("/api/admin", httpCorsMiddleware(http.HandlerFunc(admin.Handler)))
 	http.Handle("/api/admin/metric", httpCorsMiddleware(http.HandlerFunc(admin.GetMetrics)))
-	http.Handle("/api/admin/maintenance", httpCorsMiddleware(http.HandlerFunc(admin.GetMetrics)))
+	http.Handle("/api/admin/maintenance", httpCorsMiddleware(http.HandlerFunc(admin.UpdateUnderMaintenance)))
 
 	fmt.Println("WebSocket server listening on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {

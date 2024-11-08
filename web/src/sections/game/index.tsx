@@ -39,6 +39,7 @@ export default function GameClient({ gameType }: Props) {
   const [running, setRunning] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [joiningGame, setJoiningGame] = useState(false);
 
   useEffect(() => {
     if (underMaintenance) {
@@ -49,15 +50,16 @@ export default function GameClient({ gameType }: Props) {
 
   useEffect(() => {
     if (socket && confirmed) {
+      setJoiningGame(true);
       sendMessage("join-random-game", {
         userId: user?.id,
         gameTypeId: gameType.id,
       });
-
       socket.onmessage = (e) => {
         const { type, data } = JSON.parse(e.data);
 
         if (type === "join-game") {
+          setJoiningGame(false);
           setGame({
             gameId: data.gameId,
             isStarted: false,
@@ -312,15 +314,15 @@ export default function GameClient({ gameType }: Props) {
               ) : (
                 <div className="flex flex-col items-center mb-2">
                   <button
-                    onClick={() => setConfirmed(true)}
+                    onClick={() => {
+                      if (!joiningGame) {
+                        setConfirmed(true);
+                      }
+                    }}
                     className="bg-yellow-100 text-black px-3 py-1"
                   >
-                    Join game
+                    {joiningGame ? "Joining game..." : "Join game"}
                   </button>
-                  <p className="text-bl">
-                    One you join game you can&apos;t back-off, entry fees will
-                    be deducted
-                  </p>
                 </div>
               )}
               <div>
@@ -329,14 +331,21 @@ export default function GameClient({ gameType }: Props) {
                 </h3>
                 <article>
                   <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
-                    1. Once the game is started you can&apos;t opt out if you
+                    1. One you join game you can&apos;t back-off, entry fees
+                    will be deducted
+                  </p>
+                </article>
+
+                <article>
+                  <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
+                    2. Once the game is started you can&apos;t opt out if you
                     close the tab you will be considered dead with 0 points and
                     sol won&apos;t be refunded
                   </p>
                 </article>
                 <article>
                   <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
-                    2. This is a dangerous area(image) for birds if they come
+                    3. This is a dangerous area(image) for birds if they come
                     into contact with the pipe. Although the bird appears to be
                     far away, it is actually not.
                   </p>
@@ -350,17 +359,17 @@ export default function GameClient({ gameType }: Props) {
                 </article>
                 <article>
                   <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
-                    3. The speed of the bird will increase gradually.
+                    4. The speed of the bird will increase gradually.
                   </p>
                 </article>
                 <article>
                   <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
-                    4. Whoever passes the most pipes will win.
+                    5. Whoever passes the most pipes will win.
                   </p>
                 </article>
                 <article>
                   <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
-                    5. Game is over when the bird touches anything.
+                    6. Game is over when the bird touches anything.
                   </p>
                 </article>
               </div>
