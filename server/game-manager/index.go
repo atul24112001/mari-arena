@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
+	"github.com/robfig/cron"
+	// "github.com/robfig/cron/v3"
 )
 
 type NewGame struct {
@@ -32,7 +34,8 @@ type GameManager struct {
 	Users        map[string]User
 	NewGame      map[string]NewGame
 	StartedGames map[string]Game
-	Queue        Queue
+	DbQueue      Queue
+	GameQueue    Queue
 }
 
 var instance *GameManager
@@ -42,9 +45,16 @@ func GetInstance() *GameManager {
 	once.Do(func() {
 		redisAddr := os.Getenv("REDIS_URL")
 		opt, _ := redis.ParseURL(redisAddr)
-		client := redis.NewClient(opt)
-		queue := Queue{
-			client:        client,
+		dbClient := redis.NewClient(opt)
+		gameClient := redis.NewClient(opt)
+		dbQueue := Queue{
+			client:        dbClient,
+			queueName:     "mari-arena-db-queue",
+			processingKey: "mari-arena-db-queue:processing",
+			timeout:       10 * time.Second,
+		}
+		gameQueue := Queue{
+			client:        gameClient,
 			queueName:     "mari-arena-queue",
 			processingKey: "mari-arena-queue:processing",
 			timeout:       10 * time.Second,
@@ -53,23 +63,20 @@ func GetInstance() *GameManager {
 			Users:        make(map[string]User),
 			NewGame:      map[string]NewGame{},
 			StartedGames: map[string]Game{},
-			Queue:        queue,
+			DbQueue:      dbQueue,
+			GameQueue:    gameQueue,
 		}
+		ctx := context.Background()
 
-		log.Println("Created redis client")
-		if err := client.Ping(context.Background()).Err(); err != nil {
-			for {
-				_, err := client.Ping(context.Background()).Result()
-				if err == nil {
-					break
-				}
-				log.Println("Retrying Redis connection...")
-				time.Sleep(2 * time.Second)
-			}
-		}
-		go func() {
-			queue.ProcessQueue(context.Background())
-		}()
+		c := cron.New()
+		c.AddFunc("@hourly", func() {
+			dbQueue.RetryFailedTasks(ctx)
+			gameQueue.RetryFailedTasks(ctx)
+		})
+
+		go dbQueue.ProcessQueue(ctx)
+		go gameQueue.ProcessQueue(ctx)
+
 	})
 	return instance
 }
@@ -122,7 +129,7 @@ func (gameManger *GameManager) CreateGame(maxUserCount int, winnerPrice int, ent
 		},
 	}
 
-	err = gameManger.Queue.Enqueue(context.Background(), item)
+	err = gameManger.DbQueue.Enqueue(context.Background(), item)
 
 	if err != nil {
 		log.Println(err.Error())
@@ -138,7 +145,6 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 		return
 	}
 	newGameMap, newGameMapExist := gameManger.NewGame[gameTypeId]
-	log.Println(newGameMap.Game.Users)
 	if !newGameMapExist {
 		cacheGameTypeMap, cacheGameTypeMapExist := gameTypeMap[gameTypeId]
 
@@ -203,7 +209,7 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 	}
 
 	if !newGame.Users[userId] {
-		err = gameManger.Queue.Enqueue(context.Background(), map[string]interface{}{
+		err = gameManger.DbQueue.Enqueue(context.Background(), map[string]interface{}{
 			"type": "add-participant",
 			"data": map[string]interface{}{
 				"userId": userId,
@@ -263,7 +269,7 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 			}
 		}
 
-		err = gameManger.Queue.Enqueue(context.Background(), map[string]interface{}{
+		err = gameManger.DbQueue.Enqueue(context.Background(), map[string]interface{}{
 			"type": "start-game",
 			"data": map[string]interface{}{
 				"gameId": newGame.Id,
@@ -281,7 +287,7 @@ func (gameManger *GameManager) JoinGame(userId string, gameTypeId string) {
 			}
 		}
 
-		err := gameManger.Queue.Enqueue(context.Background(), map[string]interface{}{
+		err := gameManger.DbQueue.Enqueue(context.Background(), map[string]interface{}{
 			"type": "collect-entry",
 			"data": map[string]interface{}{
 				"ids":   ids,
@@ -390,18 +396,27 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 
 	if alivePlayers == 0 {
 		if winnerId != "" {
-			log.Println("346 gameId", targetGame)
-			_, err := lib.Pool.Exec(context.Background(), `UPDATE public.games SET status = $2,  "winnerId" = $3 WHERE id = $1`, gameId, "completed", winnerId)
+			err := gameManager.DbQueue.Enqueue(context.Background(), map[string]interface{}{
+				"type": "end-game",
+				"data": map[string]string{
+					"gameId":   gameId,
+					"winnerId": winnerId,
+				},
+			})
 
 			if err != nil {
-				log.Println(err.Error())
 				newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s-userId_%s-amount-%d\n", gameId, "completed", userId, targetGame.WinnerPrice)
 				lib.ErrorLogger(newLine, "errors.txt")
 				return
 			}
 
-			log.Println("353")
-			_, err = lib.Pool.Exec(context.Background(), `UPDATE public.users SET  "solanaBalance" = "solanaBalance"  + $2 WHERE id = $1`, winnerId, targetGame.WinnerPrice)
+			err = gameManager.DbQueue.Enqueue(context.Background(), map[string]interface{}{
+				"type": "update-balance",
+				"data": map[string]interface{}{
+					"winnerId": winnerId,
+					"amount":   targetGame.WinnerPrice,
+				},
+			})
 			if err != nil {
 				log.Println(err.Error())
 				newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
@@ -410,7 +425,6 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 			}
 		}
 
-		log.Println("367", alivePlayers, winnerId)
 		for k, _ := range targetGame.Users {
 			log.Println("370", k)
 			participant, exist := gameManager.GetUser(k)
@@ -434,82 +448,4 @@ func (gameManager *GameManager) GameOver(gameId string, userId string) {
 		}
 		gameManager.DeleteGame(gameId)
 	}
-}
-
-func (gameManager *GameManager) GameOver2(gameId string, userId string) {
-	targetGame := gameManager.GetGame(gameId)
-	targetGame.GameOver(userId)
-
-	var alivePlayers = 0
-	var winnerId = ""
-
-	// Count alive players and track the player with the highest score among those alive
-	var highestPoints = 0
-	for k, user := range targetGame.ScoreBoard {
-		if user.IsAlive {
-			alivePlayers += 1
-			// Only update winnerId if the player is alive and has the highest points
-			if user.Points > highestPoints {
-				highestPoints = user.Points
-				winnerId = k
-			}
-		}
-	}
-
-	log.Println("Alive players:", alivePlayers, "Winner ID:", winnerId)
-
-	// Proceed only if no players are alive, meaning the game is truly over
-	if alivePlayers == 0 {
-		if winnerId != "" {
-			newBalance := 0
-
-			// Update game status and winner
-			_, err := lib.Pool.Exec(
-				context.Background(),
-				"UPDATE public.games SET status = $2, winnerEmail = $3 WHERE id = $1",
-				gameId, "completed", winnerId,
-			)
-			if err != nil {
-				newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s\n", gameId, "completed")
-				lib.ErrorLogger(newLine, "errors.txt")
-				return
-			}
-
-			// Update winner's balance
-			err = lib.Pool.QueryRow(
-				context.Background(),
-				`UPDATE public.users SET "solanaBalance" = "solanaBalance" + $2 WHERE id = $1 RETURNING "solanaBalance"`,
-				winnerId, targetGame.WinnerPrice,
-			).Scan(&newBalance)
-			if err != nil {
-				newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine, "errors.txt")
-			} else {
-				gameManager.DeleteGame(gameId)
-			}
-		}
-
-		// Notify all players about the game result
-		for k := range targetGame.Users {
-			participant, exist := gameManager.GetUser(k)
-			if exist {
-				gameManager.Users[k] = User{
-					Id:            participant.Id,
-					CurrentGameId: "",
-					PublicKey:     participant.PublicKey,
-					Ws:            participant.Ws,
-				}
-				if k == winnerId && winnerId != "" {
-					participant.SendMessage("winner", map[string]interface{}{
-						"amount": targetGame.WinnerPrice,
-					})
-				} else {
-					participant.SendMessage("loser", map[string]interface{}{
-						"amount": targetGame.Entry,
-					})
-				}
-			}
-		}
-	}
-	log.Println("Game over complete. Alive players:", alivePlayers, "Winner ID:", winnerId)
 }

@@ -74,7 +74,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				log.Println("joining game", messageData["userId"].(string))
-				gameManager.GetInstance().Queue.Enqueue(context.Background(), map[string]interface{}{
+				gameManager.GetInstance().GameQueue.Enqueue(context.Background(), map[string]interface{}{
 					"type": "join-game",
 					"data": messageData,
 				})

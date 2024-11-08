@@ -19,7 +19,6 @@ type Queue struct {
 	timeout       time.Duration
 }
 
-// Enqueue adds a task to the queue
 func (q *Queue) Enqueue(ctx context.Context, item map[string]interface{}) error {
 
 	jsonData, err := json.Marshal(item)
@@ -35,7 +34,6 @@ func (q *Queue) Enqueue(ctx context.Context, item map[string]interface{}) error 
 
 }
 
-// Dequeue removes a task from the queue and moves it to the processing list
 func (q *Queue) Dequeue(ctx context.Context) (string, error) {
 	result, err := q.client.BRPopLPush(ctx, q.queueName, q.processingKey, 0).Result()
 	if err == redis.Nil {
@@ -44,12 +42,10 @@ func (q *Queue) Dequeue(ctx context.Context) (string, error) {
 	return result, err
 }
 
-// Acknowledge removes a task from the processing list upon successful processing
 func (q *Queue) Acknowledge(ctx context.Context, item string) error {
 	return q.client.LRem(ctx, q.processingKey, 0, item).Err()
 }
 
-// RetryFailedTasks moves items back to the main queue if they exceed the processing timeout
 func (q *Queue) RetryFailedTasks(ctx context.Context) error {
 	items, err := q.client.LRange(ctx, q.processingKey, 0, -1).Result()
 	if err != nil {
@@ -57,8 +53,6 @@ func (q *Queue) RetryFailedTasks(ctx context.Context) error {
 	}
 
 	for _, item := range items {
-		// Check the item's "processing time" with an arbitrary check using ZSET for better visibility if needed.
-		// For now we simply dequeue to retry after processing time exceeded
 		if time.Since(time.Now()) > q.timeout {
 			if err := q.client.LPush(ctx, q.queueName, item).Err(); err != nil {
 				return err
@@ -72,24 +66,19 @@ func (q *Queue) RetryFailedTasks(ctx context.Context) error {
 	return nil
 }
 
-// ProcessQueue continuously processes items and retries failed tasks periodically
 func (q *Queue) ProcessQueue(ctx context.Context) {
 	for {
-		// Attempt to dequeue a task
 		item, err := q.Dequeue(ctx)
 		if err != nil {
-			// Check for EOF (queue empty) and other errors
 			if err == io.EOF {
 				time.Sleep(2 * time.Second)
 				continue
 			} else {
-				// Log and attempt reconnection if necessary
 				log.Printf("Error dequeuing task: %v", err)
 				time.Sleep(2 * time.Second)
 				continue
 			}
 		} else if item == "" {
-			// If no items are in the queue, we wait and continue
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -106,29 +95,27 @@ func (q *Queue) ProcessQueue(ctx context.Context) {
 		log.Printf("Processing ====== %s", taskType)
 		switch taskType {
 		case "create-game":
-			_, err = lib.Pool.Exec(context.Background(), `INSERT INTO public.games (id, "entryFee", "winningAmount", "gameTypeId", "maxPlayer")
-			 VALUES ($1, $2, $3, $4, $5)
-			 RETURNING id, status,  "entryFee", "winningAmount", "maxPlayer"`, taskPayload["id"], taskPayload["entry"], taskPayload["winnerPrice"], taskPayload["gameTypeId"], taskPayload["maxUserCount"])
+			err = CreateGame(ctx, taskPayload)
 		case "add-participant":
-			_, err = lib.Pool.Exec(context.Background(), `INSERT INTO public.participants ("userId", "gameId") VALUES ($1, $2)`, taskPayload["userId"], taskPayload["gameId"])
+			err = AddParticipant(ctx, taskPayload)
 		case "start-game":
-			_, err = lib.Pool.Exec(context.Background(), `UPDATE public.games SET status = $2 WHERE id =  $1`, taskPayload["gameId"], "ongoing")
+			err = StartGame(ctx, taskPayload)
 		case "collect-entry":
-			query := fmt.Sprintf(`UPDATE public.users SET "solanaBalance" = "solanaBalance" - $1 WHERE id IN (%s) AND "solanaBalance" >= $1`, taskPayload["ids"])
-			_, err = lib.Pool.Exec(context.Background(), query, taskPayload["entry"])
+			err = CollectEntry(ctx, taskPayload)
 		case "join-game":
-			GetInstance().JoinGame(taskPayload["userId"].(string), taskPayload["gameTypeId"].(string))
+			JoinGame(ctx, taskPayload)
+		case "end-game":
+			err = EndGame(ctx, taskPayload)
+		case "update-balance":
+			err = UpdateBalance(ctx, taskPayload)
 		}
 
 		if err != nil {
-			// if err := q.RetryFailedTasks(ctx); err != nil {
 			log.Printf("Failed to retry tasks: %s", err.Error())
-			// }
 		} else {
 			if err := q.Acknowledge(ctx, item); err != nil {
 				log.Fatalf("Failed to acknowledge task: %v", err)
 			}
-
 		}
 
 	}
@@ -136,4 +123,42 @@ func (q *Queue) ProcessQueue(ctx context.Context) {
 
 func Parse(jsonStr string, result interface{}) error {
 	return json.Unmarshal([]byte(jsonStr), result)
+}
+
+func CreateGame(ctx context.Context, taskPayload map[string]interface{}) error {
+	_, err := lib.Pool.Exec(ctx, `INSERT INTO public.games (id, "entryFee", "winningAmount", "gameTypeId", "maxPlayer")
+	VALUES ($1, $2, $3, $4, $5)
+	RETURNING id, status,  "entryFee", "winningAmount", "maxPlayer"`, taskPayload["id"], taskPayload["entry"], taskPayload["winnerPrice"], taskPayload["gameTypeId"], taskPayload["maxUserCount"])
+	return err
+}
+
+func AddParticipant(ctx context.Context, taskPayload map[string]interface{}) error {
+	_, err := lib.Pool.Exec(ctx, `INSERT INTO public.participants ("userId", "gameId") VALUES ($1, $2)`, taskPayload["userId"], taskPayload["gameId"])
+	return err
+}
+
+func StartGame(ctx context.Context, taskPayload map[string]interface{}) error {
+	_, err := lib.Pool.Exec(ctx, `UPDATE public.games SET status = $2 WHERE id =  $1`, taskPayload["gameId"], "ongoing")
+	return err
+}
+
+func JoinGame(ctx context.Context, taskPayload map[string]interface{}) error {
+	GetInstance().JoinGame(taskPayload["userId"].(string), taskPayload["gameTypeId"].(string))
+	return nil
+}
+
+func EndGame(ctx context.Context, taskPayload map[string]interface{}) error {
+	_, err := lib.Pool.Exec(ctx, `UPDATE public.games SET status = $2,  "winnerId" = $3 WHERE id = $1`, taskPayload["gameId"], "completed", taskPayload["winnerId"])
+	return err
+}
+
+func CollectEntry(ctx context.Context, taskPayload map[string]interface{}) error {
+	query := fmt.Sprintf(`UPDATE public.users SET "solanaBalance" = "solanaBalance" - $1 WHERE id IN (%s) AND "solanaBalance" >= $1`, taskPayload["ids"])
+	_, err := lib.Pool.Exec(ctx, query, taskPayload["entry"])
+	return err
+}
+
+func UpdateBalance(ctx context.Context, taskPayload map[string]interface{}) error {
+	_, err := lib.Pool.Exec(ctx, `UPDATE public.users SET  "solanaBalance" = "solanaBalance"  + $2 WHERE id = $1`, taskPayload["winnerId"], taskPayload["amount"])
+	return err
 }
