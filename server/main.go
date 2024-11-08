@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flappy-bird-server/admin"
 	"flappy-bird-server/auth"
@@ -73,7 +74,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				log.Println("joining game", messageData["userId"].(string))
-				gameManager.GetInstance().JoinGame(messageData["userId"].(string), messageData["gameTypeId"].(string))
+				gameManager.GetInstance().Queue.Enqueue(context.Background(), map[string]interface{}{
+					"type": "join-game",
+					"data": messageData,
+				})
 			}
 		case "update-board":
 			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), messageData["userId"].(string))

@@ -116,6 +116,8 @@ func (q *Queue) ProcessQueue(ctx context.Context) {
 		case "collect-entry":
 			query := fmt.Sprintf(`UPDATE public.users SET "solanaBalance" = "solanaBalance" - $1 WHERE id IN (%s) AND "solanaBalance" >= $1`, taskPayload["ids"])
 			_, err = lib.Pool.Exec(context.Background(), query, taskPayload["entry"])
+		case "join-game":
+			GetInstance().JoinGame(taskPayload["userId"].(string), taskPayload["gameTypeId"].(string))
 		}
 
 		if err != nil {
