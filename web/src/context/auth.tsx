@@ -1,5 +1,6 @@
 "use client";
 import { IconButton } from "@/components/helper";
+import Spinner from "@/components/helper/Spinner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ShootingStars } from "@/components/ui/shooting-stars";
@@ -90,12 +91,12 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
   const wallet = useWallet();
 
-  const { mutate } = useMutation({
+  const verifyUserMut = useMutation({
     mutationFn: verifyUser,
     mutationKey: ["verifyUser"],
   });
 
-  const authenticateMutant = useMutation({
+  const authenticateMut = useMutation({
     mutationFn: async (data: { password: string; identifier: string }) => {
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/auth`,
@@ -184,7 +185,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
     const publicKey = wallet.publicKey?.toBase58();
     if (wallet.connected) {
       if (_token && publicKey) {
-        mutate(
+        verifyUserMut.mutate(
           {
             name: publicKey,
             identifier: publicKey,
@@ -233,7 +234,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       toast("Password length should be more then 7");
       return;
     }
-    authenticateMutant.mutate(
+    authenticateMut.mutate(
       {
         identifier: wallet.publicKey?.toBase58(),
         password,
@@ -273,7 +274,11 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       }}
     >
       <div className="h-screen dark bg-[#000] text-white  relative overflow-hidden bg-cover md:bg-contain">
-        {openPasswordDialog ? (
+        {verifyUserMut.status === "pending" ? (
+          <div className="text-white h-screen relative z-10 flex justify-center items-center">
+            <Spinner />
+          </div>
+        ) : openPasswordDialog ? (
           <div className="text-white h-screen relative z-10 flex justify-center items-center">
             <div>
               <Input
@@ -299,7 +304,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
               <div className="flex justify-center mt-3">
                 <IconButton
-                  loading={authenticateMutant.status == "pending"}
+                  loading={authenticateMut.status == "pending"}
                   onClick={authenticate}
                 >
                   Unlock
