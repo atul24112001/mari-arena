@@ -2,7 +2,6 @@ package lib
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 
@@ -23,12 +22,10 @@ func ConnectDB() {
 	}
 
 	dsn := os.Getenv("DATABASE_URL")
-	log.Println(dsn)
-
 	Pool, err = pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
 
-	fmt.Println("Connected to PostgreSQL successfully!")
+	log.Println("Connected to PostgreSQL successfully!")
 }

@@ -33,15 +33,18 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Println("Failed to upgrade:", err)
 		return
 	}
+	defer conn.Close()
 
-	var userId string
+	// var userId string
 	for {
-		_, message, err := conn.ReadMessage()
+		n, message, err := conn.ReadMessage()
 		if err != nil {
-			gameManager.GetInstance().DeleteUser(conn, userId)
+			log.Println("err", err.Error())
+			// gameManager.GetInstance().DeleteUser(conn, userId)
 			break
 		}
 
+		log.Println(n)
 		m := make(map[string]interface{})
 		err = json.Unmarshal(message, &m)
 		if err != nil {
@@ -56,26 +59,30 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			log.Println("Something went wrong while parsing message data.")
 			return
 		}
-
+		log.Println("messageType", messageType)
 		switch messageType {
 		case "add-user":
-			userId = gameManager.GetInstance().AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
+			gameManager.GetInstance().AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
 		case "join-random-game":
 			if lib.UnderMaintenance {
-				targetUser, exist := gameManager.GetInstance().GetUser(userId)
+				targetUser, exist := gameManager.GetInstance().GetUser(messageData["userId"].(string))
 				if exist {
 					targetUser.SendMessage("error", map[string]interface{}{
 						"message": "We are under maintenance please try after some time",
 					})
 				}
 			} else {
-				gameManager.GetInstance().JoinGame(userId, messageData["gameTypeId"].(string))
+				log.Println("joining game", messageData["userId"].(string))
+				gameManager.GetInstance().JoinGame(messageData["userId"].(string), messageData["gameTypeId"].(string))
 			}
 		case "update-board":
-			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), userId)
+			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), messageData["userId"].(string))
 		case "game-over":
-			gameManager.GetInstance().GameOver(messageData["gameId"].(string), userId)
+			gameManager.GetInstance().GameOver(messageData["gameId"].(string), messageData["userId"].(string))
+		default:
+			log.Println("Unknown message type:", messageType)
 		}
+		log.Println("Message processed")
 	}
 }
 

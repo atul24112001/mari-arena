@@ -48,72 +48,74 @@ export default function GameClient({ gameType }: Props) {
     }
   }, [underMaintenance]);
 
-  useEffect(() => {
-    if (socket && confirmed) {
-      setJoiningGame(true);
-      sendMessage("join-random-game", {
-        userId: user?.id,
-        gameTypeId: gameType.id,
-      });
-      socket.onmessage = (e) => {
-        const { type, data } = JSON.parse(e.data);
-
-        if (type === "join-game") {
-          setJoiningGame(false);
-          setGame({
-            gameId: data.gameId,
-            isStarted: false,
-            users: data.users,
-          });
-        } else if (type === "new-user") {
-          setGame((prev) => ({
-            gameId: data.gameId,
-            isStarted: false,
-            users: [...(prev?.users || []), data.userId],
-          }));
-        } else if (type === "start-game") {
-          startGame();
-        } else if (type === "error") {
-          toast(data?.message || "Something went wrong", {
-            duration: 2000,
-          });
-        } else if (type === "winner") {
-          toast("You won!", {
-            duration: 2000,
-          });
-          setUser((prev) => {
-            if (!prev) {
-              return prev;
-            }
-            return {
-              ...prev,
-              solanaBalance: prev.solanaBalance + data.amount,
-            };
-          });
-          router.push("/");
-        } else if (type === "loser") {
-          toast("You lose!", {
-            duration: 2000,
-          });
-          setUser((prev) => {
-            if (!prev) {
-              return prev;
-            }
-            return {
-              ...prev,
-              solanaBalance: prev.solanaBalance - data.amount,
-            };
-          });
-          router.push("/");
-        } else if (type === "error") {
-          toast(data?.message || "Something went wrong", {
-            duration: 2000,
-          });
-          router.push("/");
-        }
-      };
+  const joinGameHandler = () => {
+    if (!socket) {
+      toast("Connection error");
+      return;
     }
-  }, [socket, confirmed]);
+    setJoiningGame(true);
+    sendMessage("join-random-game", {
+      userId: user?.id,
+      gameTypeId: gameType.id,
+    });
+    socket.onmessage = (e) => {
+      const { type, data } = JSON.parse(e.data);
+
+      if (type === "join-game") {
+        setJoiningGame(false);
+        setGame({
+          gameId: data.gameId,
+          isStarted: false,
+          users: data.users,
+        });
+      } else if (type === "new-user") {
+        setGame((prev) => ({
+          gameId: data.gameId,
+          isStarted: false,
+          users: [...(prev?.users || []), data.userId],
+        }));
+      } else if (type === "start-game") {
+        startGame();
+      } else if (type === "error") {
+        toast(data?.message || "Something went wrong", {
+          duration: 2000,
+        });
+      } else if (type === "winner") {
+        toast("You won!", {
+          duration: 2000,
+        });
+        setUser((prev) => {
+          if (!prev) {
+            return prev;
+          }
+          return {
+            ...prev,
+            solanaBalance: prev.solanaBalance + data.amount,
+          };
+        });
+        router.push("/");
+      } else if (type === "loser") {
+        toast("You lose!", {
+          duration: 2000,
+        });
+        setUser((prev) => {
+          if (!prev) {
+            return prev;
+          }
+          return {
+            ...prev,
+            solanaBalance: prev.solanaBalance - data.amount,
+          };
+        });
+        router.push("/");
+      } else if (type === "error") {
+        toast(data?.message || "Something went wrong", {
+          duration: 2000,
+        });
+        router.push("/");
+      }
+    };
+  };
 
   const notEligibleToPlay = useMemo(() => {
     if (!user) {
@@ -321,6 +323,7 @@ export default function GameClient({ gameType }: Props) {
                   <button
                     onClick={() => {
                       if (!joiningGame) {
+                        joinGameHandler();
                         setConfirmed(true);
                       }
                     }}
