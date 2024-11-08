@@ -14,7 +14,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"runtime"
 
 	"github.com/gorilla/websocket"
 )
@@ -97,7 +96,7 @@ func httpCorsMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	runtime.GOMAXPROCS(2)
+	// runtime.GOMAXPROCS(4)
 	lib.ConnectDB()
 
 	http.HandleFunc("/ws", handleWebSocket)
