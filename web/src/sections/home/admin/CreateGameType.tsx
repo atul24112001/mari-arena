@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/context/auth";
+import { TOAST_ERROR_STYLES } from "@/lib/utils";
 import { GameType } from "@prisma/client";
 import { useMutation } from "@tanstack/react-query";
 import { AxiosError } from "axios";
@@ -88,7 +89,10 @@ export default function AdminCreateGameType() {
       toggleUnderMaintenance();
     } catch (error) {
       if (error instanceof AxiosError) {
-        toast(error.response?.data?.message || error.message);
+        toast(
+          error.response?.data?.message || error.message,
+          TOAST_ERROR_STYLES
+        );
       }
     }
   };

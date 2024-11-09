@@ -1,9 +1,12 @@
 package user
 
 import (
+	gameManager "flappy-bird-server/game-manager"
 	"flappy-bird-server/lib"
 	"flappy-bird-server/middleware"
+	"fmt"
 	"net/http"
+	"time"
 )
 
 type RequestBody struct {
@@ -22,6 +25,8 @@ func verifyUser(w http.ResponseWriter, r *http.Request) {
 		"message": "success",
 		"data":    []middleware.User{user},
 	}
+
+	gameManager.GetInstance().RedisClient.Set(r.Context(), fmt.Sprintf("mr-balance-%s", user.Id), user.SolanaBalance, 24*time.Hour)
 
 	if user.Email == lib.AdminPublicKey {
 		response["isAdmin"] = true

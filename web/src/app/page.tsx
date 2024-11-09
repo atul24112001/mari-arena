@@ -5,12 +5,23 @@ import { GameType } from "@prisma/client";
 import AdminCreateGameType from "@/sections/home/admin/CreateGameType";
 import Error500 from "@/sections/error/Error500";
 
+export const customCache = {
+  lastUpdated: new Date().getTime() - 1000,
+  gameTypes: [] as GameType[],
+};
+
 export default async function Home() {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`
-    );
-    const data = await response.json();
+    let gameTypes: GameType[] = customCache.gameTypes;
+    if (customCache.lastUpdated < new Date().getTime()) {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`
+      );
+      const data = await response.json();
+      gameTypes = data.data;
+      customCache.lastUpdated = new Date().getTime() + 3600000;
+      customCache.gameTypes = data.data;
+    }
 
     return (
       <>
@@ -27,7 +38,7 @@ export default async function Home() {
               title="Solo"
               description={`Entry Free | Winner 0 SOL`}
             />
-            {data.data.map((gamesType: GameType) => {
+            {gameTypes.map((gamesType: GameType) => {
               let min = 1;
               if (gamesType.currency === "SOL") {
                 min = 10 ** 9;

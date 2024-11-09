@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/context/auth";
+import { TOAST_SUCCESS_STYLES } from "@/lib/utils";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import {
@@ -63,6 +64,7 @@ export default function ClientHomePage() {
         action: (
           <IconButton onClick={window.location.reload}>Refresh</IconButton>
         ),
+        ...TOAST_SUCCESS_STYLES,
       });
     } catch (error) {
       if (error instanceof Error) {

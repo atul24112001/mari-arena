@@ -1,9 +1,12 @@
 package auth
 
 import (
+	gameManager "flappy-bird-server/game-manager"
 	"flappy-bird-server/lib"
 	"flappy-bird-server/model"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -75,6 +78,8 @@ func authenticate(w http.ResponseWriter, r *http.Request) {
 		lib.ErrorJson(w, http.StatusBadRequest, "invalid password", "")
 		return
 	}
+
+	gameManager.GetInstance().RedisClient.Set(r.Context(), fmt.Sprintf("mr-balance-%s", user.Id), user.SolanaBalance, 24*time.Hour)
 
 	lib.WriteJson(w, http.StatusOK, map[string]interface{}{
 		"message": "Login successfully",

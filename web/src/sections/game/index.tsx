@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { GameType } from "@prisma/client";
 import { toast } from "sonner";
 import Image from "next/image";
+import { TOAST_ERROR_STYLES, TOAST_SUCCESS_STYLES } from "@/lib/utils";
 
 const GameEngine = dynamic(() => import("@/components/game-engine"), {
   ssr: false,
@@ -43,14 +44,17 @@ export default function GameClient({ gameType }: Props) {
 
   useEffect(() => {
     if (underMaintenance) {
-      toast("Currently under maintenance, Please comeback after sometime");
+      toast(
+        "Currently under maintenance, Please comeback after sometime",
+        TOAST_ERROR_STYLES
+      );
       router.push("/");
     }
   }, [underMaintenance]);
 
   const joinGameHandler = () => {
     if (!socket) {
-      toast("Connection error");
+      toast("Connection error", TOAST_ERROR_STYLES);
       return;
     }
     setJoiningGame(true);
@@ -78,10 +82,12 @@ export default function GameClient({ gameType }: Props) {
         startGame();
       } else if (type === "error") {
         toast(data?.message || "Something went wrong", {
+          ...TOAST_ERROR_STYLES,
           duration: 2000,
         });
       } else if (type === "winner") {
         toast("You won!", {
+          ...TOAST_SUCCESS_STYLES,
           duration: 2000,
         });
         setUser((prev) => {
@@ -96,6 +102,7 @@ export default function GameClient({ gameType }: Props) {
         router.push("/");
       } else if (type === "loser") {
         toast("You lose!", {
+          ...TOAST_ERROR_STYLES,
           duration: 2000,
         });
         setUser((prev) => {
@@ -110,6 +117,7 @@ export default function GameClient({ gameType }: Props) {
         router.push("/");
       } else if (type === "error") {
         toast(data?.message || "Something went wrong", {
+          ...TOAST_ERROR_STYLES,
           duration: 2000,
         });
         router.push("/");
@@ -130,9 +138,8 @@ export default function GameClient({ gameType }: Props) {
   useEffect(() => {
     if (notEligibleToPlay) {
       toast("Something went wrong", {
+        ...TOAST_ERROR_STYLES,
         description: notEligibleToPlay,
-        className: "bg-primary text-red-500  border-0",
-        descriptionClassName: "text-primary-foreground",
       });
       router.push("/");
     }

@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ShootingStars } from "@/components/ui/shooting-stars";
 import { StarsBackground } from "@/components/ui/star-background";
+import { TOAST_ERROR_STYLES } from "@/lib/utils";
 import { User } from "@prisma/client";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMutation } from "@tanstack/react-query";
@@ -195,7 +196,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
             onError: (e) => {
               wallet.disconnect();
               if (e instanceof AxiosError) {
-                toast(e.response?.data.message);
+                toast(e.response?.data.message, TOAST_ERROR_STYLES);
               }
             },
             onSuccess: (data) => {
@@ -221,17 +222,17 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
 
   const authenticate = () => {
     if (!wallet.publicKey) {
-      toast("Please connect a wallet first");
+      toast("Please connect a wallet first", TOAST_ERROR_STYLES);
       togglePasswordDialog();
       return;
     }
     const password = passwordRef.current?.value || "";
     if (password.length > 15) {
-      toast("Password length should be less then 15");
+      toast("Password length should be less then 15", TOAST_ERROR_STYLES);
       return;
     }
     if (password.length < 7) {
-      toast("Password length should be more then 7");
+      toast("Password length should be more then 7", TOAST_ERROR_STYLES);
       return;
     }
     authenticateMut.mutate(
@@ -249,7 +250,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
         },
         onError: (e) => {
           if (e instanceof AxiosError) {
-            toast(e.response?.data.message);
+            toast(e.response?.data.message, TOAST_ERROR_STYLES);
           }
         },
       }
