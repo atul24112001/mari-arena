@@ -8,7 +8,7 @@ import (
 
 func getGameTypes(w http.ResponseWriter, r *http.Request) {
 	gameTypes := []model.GameType{}
-	rows, err := lib.Pool.Query(r.Context(), "SELECT id, title, entry, winner, currency FROM public.gametypes")
+	rows, err := lib.Pool.Query(r.Context(), `SELECT id, title, entry, winner, currency, "maxPlayer" FROM public.gametypes`)
 	if err != nil {
 		lib.ErrorJson(w, http.StatusInternalServerError, err.Error(), "")
 		return
@@ -17,7 +17,7 @@ func getGameTypes(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var i model.GameType
-		if err := rows.Scan(&i.Id, &i.Title, &i.Entry, &i.Winner, &i.Currency); err != nil {
+		if err := rows.Scan(&i.Id, &i.Title, &i.Entry, &i.Winner, &i.Currency, &i.MaxPlayer); err != nil {
 			lib.ErrorJson(w, http.StatusInternalServerError, err.Error(), "")
 			return
 		}

@@ -10,18 +10,25 @@ export const customCache = {
   gameTypes: [] as GameType[],
 };
 
+export const getGameTypes = async () => {
+  let gameTypes: GameType[] = customCache.gameTypes;
+  if (customCache.lastUpdated < new Date().getTime()) {
+    console.log("Updating game types");
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`,
+      { cache: "no-cache" }
+    );
+    const data = await response.json();
+    gameTypes = data.data;
+    customCache.lastUpdated = new Date().getTime() + 3600000;
+    customCache.gameTypes = data.data;
+  }
+  return gameTypes;
+};
+
 export default async function Home() {
   try {
-    let gameTypes: GameType[] = customCache.gameTypes;
-    if (customCache.lastUpdated < new Date().getTime()) {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`
-      );
-      const data = await response.json();
-      gameTypes = data.data;
-      customCache.lastUpdated = new Date().getTime() + 3600000;
-      customCache.gameTypes = data.data;
-    }
+    const gameTypes = await getGameTypes();
 
     return (
       <>
