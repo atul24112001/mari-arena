@@ -108,6 +108,8 @@ func (q *Queue) ProcessQueue(ctx context.Context) {
 			err = EndGame(ctx, taskPayload)
 		case "update-balance":
 			err = UpdateBalance(ctx, taskPayload)
+		case "delete-user":
+			GetInstance().DeleteUser(taskPayload["userId"].(string))
 		}
 
 		if err != nil {

@@ -11,6 +11,6 @@ export const TOAST_ERROR_STYLES = {
 };
 
 export const TOAST_SUCCESS_STYLES = {
-  className: "bg-primary text-green-500  border-0",
-  descriptionClassName: "text-primary-foreground",
+  className: "bg-primary text-white  border-0",
+  // descriptionClassName: "text-primary-foreground",
 };

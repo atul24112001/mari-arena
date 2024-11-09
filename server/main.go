@@ -36,12 +36,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// var userId string
 	for {
 		n, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Println("err", err.Error())
-			// gameManager.GetInstance().DeleteUser(conn, userId)
+			targetUserId, exist := gameManager.GetInstance().UserConnectionMap[conn]
+			if exist {
+				delete(gameManager.GetInstance().UserConnectionMap, conn)
+				gameManager.GetInstance().GameQueue.Enqueue(context.Background(), map[string]interface{}{
+					"type": "delete-user",
+					"data": map[string]string{
+						"userId": targetUserId,
+					},
+				})
+			}
 			break
 		}
 

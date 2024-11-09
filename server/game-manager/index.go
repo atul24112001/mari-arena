@@ -32,12 +32,13 @@ type GameTypeMap struct {
 var gameTypeMap = map[string]GameTypeMap{}
 
 type GameManager struct {
-	Users        map[string]User
-	NewGame      map[string]NewGame
-	StartedGames map[string]Game
-	DbQueue      Queue
-	GameQueue    Queue
-	RedisClient  *redis.Client
+	UserConnectionMap map[*websocket.Conn]string
+	Users             map[string]User
+	NewGame           map[string]NewGame
+	StartedGames      map[string]Game
+	DbQueue           Queue
+	GameQueue         Queue
+	RedisClient       *redis.Client
 }
 
 var instance *GameManager
@@ -61,12 +62,13 @@ func GetInstance() *GameManager {
 			timeout:       10 * time.Second,
 		}
 		instance = &GameManager{
-			Users:        make(map[string]User),
-			NewGame:      map[string]NewGame{},
-			StartedGames: map[string]Game{},
-			DbQueue:      dbQueue,
-			GameQueue:    gameQueue,
-			RedisClient:  client,
+			UserConnectionMap: make(map[*websocket.Conn]string),
+			Users:             make(map[string]User),
+			NewGame:           map[string]NewGame{},
+			StartedGames:      map[string]Game{},
+			DbQueue:           dbQueue,
+			GameQueue:         gameQueue,
+			RedisClient:       client,
 		}
 		ctx := context.Background()
 
@@ -83,9 +85,9 @@ func GetInstance() *GameManager {
 	return instance
 }
 
-func (gameManager *GameManager) GetGame(gameId string) *Game {
-	targetGame := gameManager.StartedGames[gameId]
-	return &targetGame
+func (gameManager *GameManager) GetGame(gameId string) (*Game, bool) {
+	targetGame, exist := gameManager.StartedGames[gameId]
+	return &targetGame, exist
 }
 
 func (gameManager *GameManager) GetUser(userId string) (*User, bool) {
@@ -94,6 +96,7 @@ func (gameManager *GameManager) GetUser(userId string) (*User, bool) {
 }
 
 func (gameManager *GameManager) AddUser(userId string, publicKey string, ws *websocket.Conn) {
+	gameManager.UserConnectionMap[ws] = userId
 	gameManager.Users[userId] = User{
 		Id:        userId,
 		Ws:        ws,
@@ -264,6 +267,13 @@ func (gameManager *GameManager) JoinGame(userId string, gameTypeId string) {
 		Points:  0,
 	}
 
+	gameManager.Users[targetUser.Id] = User{
+		Id:            targetUser.Id,
+		CurrentGameId: newGame.Id,
+		PublicKey:     targetUser.PublicKey,
+		Ws:            targetUser.Ws,
+	}
+
 	newGameMap.Game = newGame
 	gameManager.NewGame[gameTypeId] = newGameMap
 
@@ -321,12 +331,6 @@ func (gameManager *GameManager) JoinGame(userId string, gameTypeId string) {
 						"message": "Something went wrong while collecting entry fees",
 					})
 				} else {
-					gameManager.Users[id] = User{
-						Id:            participant.Id,
-						CurrentGameId: newGame.Id,
-						PublicKey:     participant.PublicKey,
-						Ws:            participant.Ws,
-					}
 					participant.SendMessage("start-game", map[string]interface{}{})
 				}
 			}
@@ -334,40 +338,36 @@ func (gameManager *GameManager) JoinGame(userId string, gameTypeId string) {
 	}
 }
 
-func (gameManager *GameManager) DeleteUser(conn *websocket.Conn, targetUserId string) {
-	if targetUserId != "" {
-		targetUser, userExist := gameManager.GetUser(targetUserId)
-		for gameId, g := range gameManager.StartedGames {
-			_, existInGame := g.Users[targetUserId]
-			if existInGame && userExist {
-				log.Println("User exist in game", gameId, "currentGameId: ", targetUser.CurrentGameId, " end")
-				if targetUser.CurrentGameId == "" {
-					// user is in the game but game is not started yet
-					inGameUsersMap := map[string]bool{}
-					inGameUsersScoreboard := map[string]Score{}
-					for key, _ := range g.Users {
-						if key != targetUserId {
-							inGameUsersMap[key] = true
-							inGameUsersScoreboard[key] = g.ScoreBoard[key]
-						}
+func (gameManager *GameManager) DeleteUser(targetUserId string) {
+	targetUser, userExist := gameManager.GetUser(targetUserId)
+	if userExist {
+		delete(gameManager.Users, targetUserId)
+		if targetUser.CurrentGameId != "" {
+			targetGame, gameExist := gameManager.GetGame(targetUser.CurrentGameId)
+			if gameExist {
+				if targetGame.Status == "ongoing" && targetGame.ScoreBoard[targetUserId].IsAlive {
+					gameManager.GameOver(targetGame.Id, targetUserId)
+				} else if targetGame.Status == "staging" {
+					inGameUsers := targetGame.Users
+					inGameScoreboard := targetGame.ScoreBoard
+
+					delete(inGameUsers, targetUserId)
+					delete(inGameScoreboard, targetUserId)
+
+					gameManager.StartedGames[targetGame.Id] = Game{
+						Id:               targetGame.Id,
+						MaxUserCount:     targetGame.MaxUserCount,
+						CurrentUserCount: targetGame.CurrentUserCount - 1,
+						WinnerPrice:      targetGame.WinnerPrice,
+						Entry:            targetGame.Entry,
+						Users:            inGameUsers,
+						Status:           "staging",
+						ScoreBoard:       inGameScoreboard,
 					}
-					gameManager.StartedGames[gameId] = Game{
-						Id:               g.Id,
-						MaxUserCount:     g.MaxUserCount,
-						CurrentUserCount: g.CurrentUserCount - 1,
-						WinnerPrice:      g.WinnerPrice,
-						Entry:            g.Entry,
-						Users:            inGameUsersMap,
-						Status:           g.Status,
-						ScoreBoard:       inGameUsersScoreboard,
-					}
-				} else {
-					gameManager.GameOver(gameId, targetUserId)
 				}
 			}
 		}
 	}
-	delete(gameManager.Users, targetUserId)
 }
 
 func (gameManager *GameManager) DeleteGame(gameId string) {
@@ -378,94 +378,98 @@ func (gameManager *GameManager) UpdateBoard(gameId string, userId string) {
 	if _, exist := gameManager.GetUser(userId); !exist {
 		return
 	}
-	targetGame := gameManager.GetGame(gameId)
-	targetGame.UpdateScore(userId)
+	targetGame, gameExist := gameManager.GetGame(gameId)
+	if gameExist {
+		targetGame.UpdateScore(userId)
 
-	oldBoard, exist := targetGame.ScoreBoard[userId]
-	if exist {
-		targetGame.ScoreBoard[userId] = Score{
-			IsAlive: oldBoard.IsAlive,
-			Points:  oldBoard.Points + 1,
+		oldBoard, exist := targetGame.ScoreBoard[userId]
+		if exist {
+			targetGame.ScoreBoard[userId] = Score{
+				IsAlive: oldBoard.IsAlive,
+				Points:  oldBoard.Points + 1,
+			}
 		}
 	}
 }
 
 func (gameManager *GameManager) GameOver(gameId string, userId string) {
-	targetGame := gameManager.GetGame(gameId)
-	targetGame.GameOver(userId)
+	targetGame, gameExist := gameManager.GetGame(gameId)
+	if gameExist {
+		targetGame.GameOver(userId)
 
-	var alivePlayers = 0
-	var winnerId = ""
+		var alivePlayers = 0
+		var winnerId = ""
 
-	for k, _ := range targetGame.Users {
-		if targetGame.ScoreBoard[k].IsAlive {
-			alivePlayers += 1
-		}
-	}
-
-	var highestPoints = 0
-	for k, s := range targetGame.ScoreBoard {
-		if s.Points > highestPoints {
-			highestPoints = s.Points
-			winnerId = k
-		}
-	}
-
-	if alivePlayers == 0 {
-		if winnerId != "" {
-			err := gameManager.DbQueue.Enqueue(context.Background(), map[string]interface{}{
-				"type": "end-game",
-				"data": map[string]string{
-					"gameId":   gameId,
-					"winnerId": winnerId,
-				},
-			})
-
-			if err != nil {
-				newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s-userId_%s-amount-%d\n", gameId, "completed", userId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine, "errors.txt")
-				return
-			}
-
-			err = gameManager.DbQueue.Enqueue(context.Background(), map[string]interface{}{
-				"type": "update-balance",
-				"data": map[string]interface{}{
-					"winnerId": winnerId,
-					"amount":   targetGame.WinnerPrice,
-				},
-			})
-			if err != nil {
-				log.Println(err.Error())
-				newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
-				lib.ErrorLogger(newLine, "errors.txt")
-				return
+		for k, _ := range targetGame.Users {
+			if targetGame.ScoreBoard[k].IsAlive {
+				alivePlayers += 1
 			}
 		}
 
-		for k := range targetGame.Users {
-			participant, exist := gameManager.GetUser(k)
-			if exist {
-				gameManager.Users[k] = User{
-					Id:            participant.Id,
-					CurrentGameId: "",
-					PublicKey:     participant.PublicKey,
-					Ws:            participant.Ws,
+		var highestPoints = 0
+		for k, s := range targetGame.ScoreBoard {
+			if s.Points > highestPoints {
+				highestPoints = s.Points
+				winnerId = k
+			}
+		}
+
+		if alivePlayers == 0 {
+			if winnerId != "" {
+				err := gameManager.DbQueue.Enqueue(context.Background(), map[string]interface{}{
+					"type": "end-game",
+					"data": map[string]string{
+						"gameId":   gameId,
+						"winnerId": winnerId,
+					},
+				})
+
+				if err != nil {
+					newLine := fmt.Sprintf("ERROR_UPDATING_GAME-gameId_%s-status_%s-userId_%s-amount-%d\n", gameId, "completed", userId, targetGame.WinnerPrice)
+					lib.ErrorLogger(newLine, "errors.txt")
+					return
 				}
-				if k == winnerId {
-					balance, err := gameManager.GetBalance(winnerId)
-					if err != nil {
-						gameManager.SetBalance(winnerId, balance+targetGame.WinnerPrice)
+
+				err = gameManager.DbQueue.Enqueue(context.Background(), map[string]interface{}{
+					"type": "update-balance",
+					"data": map[string]interface{}{
+						"winnerId": winnerId,
+						"amount":   targetGame.WinnerPrice,
+					},
+				})
+				if err != nil {
+					log.Println(err.Error())
+					newLine := fmt.Sprintf("ERROR_UPDATING_USER_BALANCE-userId_%s-amount_%d\n", winnerId, targetGame.WinnerPrice)
+					lib.ErrorLogger(newLine, "errors.txt")
+					return
+				}
+			}
+
+			for k := range targetGame.Users {
+				participant, exist := gameManager.GetUser(k)
+				if exist {
+					gameManager.Users[k] = User{
+						Id:            participant.Id,
+						CurrentGameId: "",
+						PublicKey:     participant.PublicKey,
+						Ws:            participant.Ws,
 					}
-					participant.SendMessage("winner", map[string]interface{}{
-						"amount": targetGame.WinnerPrice - targetGame.Entry,
-					})
-				} else {
-					participant.SendMessage("loser", map[string]interface{}{
-						"amount": targetGame.Entry,
-					})
+					if k == winnerId {
+						balance, err := gameManager.GetBalance(winnerId)
+						if err != nil {
+							gameManager.SetBalance(winnerId, balance+targetGame.WinnerPrice)
+						}
+						participant.SendMessage("winner", map[string]interface{}{
+							"amount": targetGame.WinnerPrice - targetGame.Entry,
+						})
+					} else {
+						participant.SendMessage("loser", map[string]interface{}{
+							"amount": targetGame.Entry,
+						})
+					}
 				}
 			}
+			gameManager.DeleteGame(gameId)
 		}
-		gameManager.DeleteGame(gameId)
 	}
 }
