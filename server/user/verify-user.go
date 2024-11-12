@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-type RequestBody struct {
-	Name       string `json:"name"`
-	Identifier string `json:"identifier"`
-}
+// type RequestBody struct {
+// 	Name       string `json:"name"`
+// 	Identifier string `json:"identifier"`
+// }
 
 func verifyUser(w http.ResponseWriter, r *http.Request) {
 	user, err := middleware.CheckAccess(w, r)

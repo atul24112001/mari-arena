@@ -8,7 +8,6 @@ import (
 	gameManager "flappy-bird-server/game-manager"
 	gametype "flappy-bird-server/game-type"
 	"flappy-bird-server/lib"
-	"flappy-bird-server/middleware"
 	"flappy-bird-server/transaction"
 	"flappy-bird-server/user"
 	"fmt"
@@ -16,6 +15,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 
@@ -97,37 +98,34 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func httpCorsMiddleware(next http.Handler) http.Handler {
-	return middleware.Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", os.Getenv("FRONTEND_URL"))
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	}))
-
-}
-
 func main() {
 	// runtime.GOMAXPROCS(4)
 	lib.ConnectDB()
+	r := mux.NewRouter()
 
-	http.HandleFunc("/ws", handleWebSocket)
-	http.Handle("/api/user", httpCorsMiddleware(http.HandlerFunc(user.Handler)))
-	http.Handle("/api/auth", httpCorsMiddleware(http.HandlerFunc(auth.Handler)))
-	http.Handle("/api/transaction", http.HandlerFunc(transaction.Handler))
-	http.Handle("/api/game-types", httpCorsMiddleware(http.HandlerFunc(gametype.Handler)))
-	http.Handle("/api/admin", httpCorsMiddleware(http.HandlerFunc(admin.Handler)))
-	http.Handle("/api/admin/metric", httpCorsMiddleware(http.HandlerFunc(admin.GetMetrics)))
-	http.Handle("/api/admin/maintenance", httpCorsMiddleware(http.HandlerFunc(admin.UpdateUnderMaintenance)))
+	r.HandleFunc("/api/transaction", transaction.Handler)
+	r.HandleFunc("/api/game-types", gametype.Handler)
+
+	r.HandleFunc("/ws", handleWebSocket)
+	api := r.PathPrefix("/api").Subrouter()
+	userRouter := api.PathPrefix("/user").Subrouter()
+	authRouter := api.PathPrefix("/auth").Subrouter()
+	adminRouter := api.PathPrefix("/admin").Subrouter()
+
+	user.Handler(userRouter)
+	auth.Handler(authRouter)
+	admin.Handler(adminRouter)
+
+	corsHandler := handlers.CORS(
+		handlers.AllowedOrigins([]string{os.Getenv("FRONTEND_URL")}),
+		handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{"Origin", "Content-Type", "Authorization"}),
+	)(r)
+
+	loggingHandler := handlers.LoggingHandler(os.Stdout, corsHandler)
 
 	fmt.Println("WebSocket server listening on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", loggingHandler); err != nil {
 		log.Fatal("ListenAndServe error:", err)
 	}
 }

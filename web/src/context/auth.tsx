@@ -36,6 +36,7 @@ type AuthContextType = {
   underMaintenance: boolean;
   togglePasswordDialog: () => void;
   toggleUnderMaintenance: () => void;
+  loginHandler: (identifier: string, password: string) => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -49,25 +50,18 @@ const AuthContext = createContext<AuthContextType>({
   underMaintenance: false,
   togglePasswordDialog: () => {},
   toggleUnderMaintenance: () => {},
+  loginHandler: () => {},
 });
 
-async function verifyUser(data: {
-  name: string;
-  identifier: string;
-  token: string;
-}): Promise<{
+async function verifyUser(data: { token: string }): Promise<{
   data: [User];
   message: string;
   token: string;
   isAdmin?: boolean;
   underMaintenance?: boolean;
 }> {
-  const response = await axios.post(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/user`,
-    {
-      name: data.name,
-      identifier: data.identifier,
-    },
+  const response = await axios.get(
+    `${process.env.NEXT_PUBLIC_API_URL}/api/user/me`,
     {
       headers: {
         Authorization: `Bearer ${data.token}`,
@@ -88,6 +82,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [newUser, setNewUser] = useState(false);
   const [retry, setRetry] = useState(0);
 
   const wallet = useWallet();
@@ -97,14 +92,38 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
     mutationKey: ["verifyUser"],
   });
 
-  const authenticateMut = useMutation({
+  const checkUserMut = useMutation({
+    mutationFn: async ({ identifier }: { identifier: string }) => {
+      await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/${identifier}`
+      );
+    },
+    mutationKey: ["checkUser"],
+  });
+
+  const loginMutation = useMutation({
     mutationFn: async (data: { password: string; identifier: string }) => {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
         {
           password: data.password,
           identifier: data.identifier,
         }
+      );
+      return response.data;
+    },
+    mutationKey: ["authenticate"],
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: async (data: {
+      password: string;
+      identifier: string;
+      signature: number[];
+    }) => {
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`,
+        data
       );
       return response.data;
     },
@@ -166,11 +185,6 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
         setSocket(null);
         connectSocket();
       }
-      // console.log(JSON.stringify(e));
-      // wallet.disconnect();
-      // setUser(null);
-      // setToken(null);
-      // localStorage.removeItem("token");
     };
 
     ws.onerror = () => {
@@ -188,14 +202,13 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       if (_token && publicKey) {
         verifyUserMut.mutate(
           {
-            name: publicKey,
-            identifier: publicKey,
             token: _token,
           },
           {
             onError: (e) => {
               wallet.disconnect();
               if (e instanceof AxiosError) {
+                localStorage.clear();
                 toast(e.response?.data.message, TOAST_ERROR_STYLES);
               }
             },
@@ -213,6 +226,20 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
             },
           }
         );
+      } else if (publicKey) {
+        checkUserMut.mutate(
+          { identifier: publicKey },
+          {
+            onError: () => {
+              console.log("New user");
+              setNewUser(true);
+            },
+            // onSuccess: () => {},
+            onSettled: () => {
+              togglePasswordDialog();
+            },
+          }
+        );
       } else {
         setUser(null);
         setOpenPasswordDialog(true);
@@ -220,13 +247,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
     }
   }, [wallet.connected]);
 
-  const authenticate = () => {
-    if (!wallet.publicKey) {
-      toast("Please connect a wallet first", TOAST_ERROR_STYLES);
-      togglePasswordDialog();
-      return;
-    }
-    const password = passwordRef.current?.value || "";
+  const loginHandler = (identifier: string, password: string) => {
     if (password.length > 15) {
       toast("Password length should be less then 15", TOAST_ERROR_STYLES);
       return;
@@ -235,9 +256,9 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       toast("Password length should be more then 7", TOAST_ERROR_STYLES);
       return;
     }
-    authenticateMut.mutate(
+    loginMutation.mutate(
       {
-        identifier: wallet.publicKey?.toBase58(),
+        identifier,
         password,
       },
       {
@@ -257,6 +278,63 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
     );
   };
 
+  const login = () => {
+    if (!wallet.publicKey) {
+      toast("Please connect a wallet first", TOAST_ERROR_STYLES);
+      return;
+    }
+    const password = passwordRef.current?.value || "";
+    loginHandler(wallet.publicKey.toBase58(), password);
+  };
+
+  const register = async () => {
+    if (!wallet.publicKey || !wallet.signMessage) {
+      toast("Please connect a wallet first", TOAST_ERROR_STYLES);
+      togglePasswordDialog();
+      return;
+    }
+    const password = passwordRef.current?.value || "";
+    if (password.length > 15) {
+      toast("Password length should be less then 15", TOAST_ERROR_STYLES);
+      return;
+    }
+    if (password.length < 7) {
+      toast("Password length should be more then 7", TOAST_ERROR_STYLES);
+      return;
+    }
+    try {
+      const message = new TextEncoder().encode(password);
+      const signedMessage = await wallet.signMessage(message);
+      // const decoder = new TextDecoder("utf8");
+      // const signature = decoder.decode(signedMessage);
+
+      // console.log({ sig:  });
+      registerMutation.mutate(
+        {
+          identifier: wallet.publicKey.toBase58(),
+          password,
+          signature: Array.from(signedMessage),
+        },
+        {
+          onSuccess: (data) => {
+            togglePasswordDialog();
+            connectSocket();
+            setUser(data.data);
+            setToken(data.token);
+            localStorage.setItem("token", data.token);
+          },
+          onError: (e) => {
+            if (e instanceof AxiosError) {
+              toast(e.response?.data.message, TOAST_ERROR_STYLES);
+            }
+          },
+        }
+      );
+    } catch (error: any) {
+      toast(error.message);
+    }
+  };
+
   const toggleUnderMaintenance = () => setUnderMaintenance((prev) => !prev);
 
   return (
@@ -272,6 +350,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
         togglePasswordDialog,
         toggleUnderMaintenance,
         underMaintenance,
+        loginHandler,
       }}
     >
       <div className="h-screen dark bg-[#000] text-white  relative overflow-hidden bg-cover md:bg-contain">
@@ -304,12 +383,21 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
               </div>
 
               <div className="flex justify-center mt-3">
-                <IconButton
-                  loading={authenticateMut.status == "pending"}
-                  onClick={authenticate}
-                >
-                  Unlock
-                </IconButton>
+                {newUser ? (
+                  <IconButton
+                    loading={registerMutation.status === "pending"}
+                    onClick={register}
+                  >
+                    Register
+                  </IconButton>
+                ) : (
+                  <IconButton
+                    loading={loginMutation.status == "pending"}
+                    onClick={login}
+                  >
+                    Login
+                  </IconButton>
+                )}
               </div>
             </div>
           </div>

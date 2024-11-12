@@ -22,13 +22,19 @@ import {
 import { LogOut, Plus } from "lucide-react";
 import React, { useRef, useState } from "react";
 import { toast } from "sonner";
+import { isDesktop } from "react-device-detect";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function ClientHomePage() {
   const rechargeAmountRef = useRef<HTMLInputElement>(null);
+  const identifierRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const [openRechargeModal, setOpenRechargeModal] = useState(false);
-  const { user, underMaintenance } = useAuth();
+  const { user, underMaintenance, loginHandler } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showLoginForm, setShowLoginForm] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   const wallet = useWallet();
@@ -73,10 +79,20 @@ export default function ClientHomePage() {
       }
     }
   };
+
+  const toggleLoginForm = () => setShowLoginForm((prev) => !prev);
+
   const toggleRechargeModal = () => {
     if (!loading) {
       setOpenRechargeModal((prev) => !prev);
     }
+  };
+
+  const login = () => {
+    loginHandler(
+      identifierRef.current?.value || "",
+      passwordRef.current?.value || ""
+    );
   };
 
   return (
@@ -135,18 +151,93 @@ export default function ClientHomePage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <IconButton color="error" onClick={wallet.disconnect}>
+          <IconButton
+            color="error"
+            onClick={() => {
+              wallet.disconnect();
+              localStorage.clear();
+            }}
+          >
             <LogOut size={20} />
             <span className="hidden md:inline-block">Disconnect</span>
           </IconButton>
         </div>
       ) : (
-        <button
-          className="bg-[#2b9245] text-[#fff] text-xs md:text-sm font-bold  rounded-md px-5 py-2 mb-2"
-          onClick={() => walletModal.setVisible(true)}
-        >
-          Connect
-        </button>
+        <>
+          {isDesktop ? (
+            <button
+              className="bg-[#2b9245] text-[#fff] text-xs md:text-sm font-bold  rounded-md px-5 py-2 mb-2"
+              onClick={() => walletModal.setVisible(true)}
+            >
+              Connect
+            </button>
+          ) : (
+            <Dialog open={showLoginForm} onOpenChange={toggleLoginForm}>
+              <button
+                className="bg-[#2b9245] text-[#fff] text-xs md:text-sm font-bold  rounded-md px-5 py-2 mb-2"
+                onClick={toggleLoginForm}
+              >
+                Login
+              </button>
+              <DialogContent className=" bg-primary text-primary-foreground border-0 w-[90%] md:w-[60%] lg:w-[40%]">
+                <DialogHeader>
+                  <DialogTitle className="">Login</DialogTitle>
+
+                  <DialogDescription className="">
+                    Note: You can&apos;t register for this device you can only
+                    register form desktop which has web3 wallet like Phantom,
+                    Backpack etc.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div>
+                  <input
+                    ref={identifierRef}
+                    placeholder="Public key"
+                    className="w-full mb-2 rounded-lg  bg-[#7c7c7c1f] px-4 py-2  active:outline-none focus:outline-none"
+                  />
+                  <input
+                    ref={passwordRef}
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Password"
+                    className="w-full  rounded-lg  bg-[#7c7c7c1f] px-4 py-2  active:outline-none focus:outline-none"
+                  />
+                  <div className="cursor-pointer flex items-center space-x-2 mt-2">
+                    <Checkbox
+                      checked={showPassword}
+                      onCheckedChange={(v) => setShowPassword(v as boolean)}
+                      id="terms"
+                      className="dark"
+                    />
+                    <label
+                      htmlFor="terms"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Show Password
+                    </label>
+                  </div>
+                  {error && (
+                    <div className=" text-sm font-bold px-2 text-red-500 rounded-lg py-1">
+                      {error}
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <IconButton color="error" onClick={toggleLoginForm}>
+                    Cancel
+                  </IconButton>
+                  <IconButton
+                    loading={loading}
+                    // disabled={underMaintenance}
+                    onClick={login}
+                  >
+                    Login
+                  </IconButton>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </>
       )}
     </>
   );

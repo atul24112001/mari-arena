@@ -18,10 +18,14 @@ export const getGameTypes = async () => {
       `${process.env.NEXT_PUBLIC_API_URL}/api/game-types`,
       { cache: "no-cache" }
     );
-    const data = await response.json();
-    gameTypes = data.data;
-    customCache.lastUpdated = new Date().getTime() + 3600000;
-    customCache.gameTypes = data.data;
+    if (response.status) {
+      const data = await response.json();
+      gameTypes = data.data;
+      customCache.lastUpdated = new Date().getTime() + 3600000;
+      customCache.gameTypes = data.data;
+    } else {
+      throw Error("Something went wrong");
+    }
   }
   return gameTypes;
 };

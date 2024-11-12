@@ -1,21 +1,31 @@
 package user
 
 import (
-	"flappy-bird-server/lib"
-	"net/http"
+	"github.com/gorilla/mux"
 )
 
-// func Router(api fiber.Router) {
-// 	userRoute := api.Group("/user")
-
-// 	// userRoute.Post("/", middleware.CheckAccess, verifyUser)
-// 	// userRoute.Post("/", middleware.CheckAccess, updatePassword)
-// }
-
-func Handler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		verifyUser(w, r)
-		return
-	}
-	lib.ErrorJson(w, 405, "Method not allowed", "")
+func Handler(r *mux.Router) {
+	r.HandleFunc("/me", verifyUser).Methods("GET")
+	r.HandleFunc("/{id}", CheckUser).Methods("GET")
 }
+
+// func Handler() {
+// 	log.Println("User route")
+// 	w.Header().Set("Access-Control-Allow-Origin", os.Getenv("FRONTEND_URL"))
+// 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+// 	w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+
+// 	if r.Method == http.MethodOptions {
+// 		w.WriteHeader(http.StatusNoContent)
+// 		return
+// 	}
+// 	if r.Method == http.MethodPost {
+// 		verifyUser(w, r)
+// 		return
+// 	}
+// 	if r.Method == http.MethodGet {
+// 		checkUser(w, r)
+// 		return
+// 	}
+// 	lib.ErrorJson(w, 405, "Method not allowed", "")
+// }

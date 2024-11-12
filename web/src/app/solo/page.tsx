@@ -192,6 +192,20 @@ export default function Home() {
             </div>
           ) : (
             <div className="w-[90%] max-w-96">
+              {gameStartingIn !== 0 ? (
+                <p className="font-bold text-xl text-center text-yellow-100 mt-3">
+                  Game starting in {gameStartingIn} sec...
+                </p>
+              ) : (
+                <div className="flex justify-center items-center mt-3">
+                  <button
+                    onClick={startGame}
+                    className="bg-yellow-100  text-black px-3 py-1"
+                  >
+                    Start game
+                  </button>
+                </div>
+              )}
               <div>
                 <h3 className="font-bold mb-1 text-lg text-yellow-100">
                   Rules
@@ -229,24 +243,10 @@ export default function Home() {
                 </article>
                 <article>
                   <p className="font-semibold bg-yellow-100 px-2 py-1 rounded-sm mb-1 text-black">
-                    4. Game is over when the bird touches anything.
+                    5. Game is over when the bird touches anything.
                   </p>
                 </article>
               </div>
-              {gameStartingIn !== 0 ? (
-                <p className="font-bold text-xl text-center text-yellow-100 mt-3">
-                  Game starting in {gameStartingIn} sec...
-                </p>
-              ) : (
-                <div className="flex justify-center items-center mt-3">
-                  <button
-                    onClick={startGame}
-                    className="bg-yellow-100  text-black px-3 py-1"
-                  >
-                    Start game
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </div>

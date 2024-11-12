@@ -46,12 +46,19 @@ var once sync.Once
 
 func GetInstance() *GameManager {
 	once.Do(func() {
-		client := redis.NewClient(&redis.Options{
-			Addr:     os.Getenv("REDIS_ADDRESS"),
-			Password: os.Getenv("REDIS_PASSWORD"),
-			DB:       0,
-		})
+		// client := redis.NewClient(&redis.Options{
+		// 	Addr:     os.Getenv("REDIS_ADDRESS"),
+		// 	Password: os.Getenv("REDIS_PASSWORD"),
+		// 	DB:       0,
+		// })
 
+		opt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
+		if err != nil {
+			log.Fatal("Error parsing redis url: ", err.Error())
+			return
+		}
+
+		client := redis.NewClient(opt)
 		dbQueue := Queue{
 			client:        client,
 			queueName:     "mari-arena-db-queue",
@@ -78,7 +85,7 @@ func GetInstance() *GameManager {
 		for i := 0; i < 3; i++ {
 			log.Println("Checking redis connection")
 			if r := client.Ping(ctx); r.Err() != nil && i > 1 {
-				log.Fatal("Error connecting redis", r.Err().Error())
+				log.Fatal("Error connecting redis: ", r.Err().Error())
 				time.Sleep(1 * time.Second)
 			}
 		}
