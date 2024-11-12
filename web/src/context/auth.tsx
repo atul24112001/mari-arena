@@ -263,7 +263,6 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
       },
       {
         onSuccess: (data) => {
-          togglePasswordDialog();
           connectSocket();
           setUser(data.data);
           setToken(data.token);

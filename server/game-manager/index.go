@@ -84,7 +84,12 @@ func GetInstance() *GameManager {
 		ctx := context.Background()
 		for i := 0; i < 3; i++ {
 			log.Println("Checking redis connection")
-			if r := client.Ping(ctx); r.Err() != nil && i > 1 {
+			r := client.Ping(ctx)
+			if r.Err() == nil {
+				log.Println("Redis connected successfully")
+				break
+			}
+			if r.Err() != nil && i > 1 {
 				log.Fatal("Error connecting redis: ", r.Err().Error())
 				time.Sleep(1 * time.Second)
 			}
@@ -92,13 +97,13 @@ func GetInstance() *GameManager {
 
 		c := cron.New()
 		c.AddFunc("@hourly", func() {
+			log.Println("Retrying failed tasks")
 			dbQueue.RetryFailedTasks(ctx)
 			gameQueue.RetryFailedTasks(ctx)
 		})
 
 		go dbQueue.ProcessQueue(ctx)
 		go gameQueue.ProcessQueue(ctx)
-
 	})
 	return instance
 }
