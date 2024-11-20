@@ -16,7 +16,7 @@ const queryClient = new QueryClient();
 
 export default function Provider({ children }: PropsWithChildren) {
   const endpoint = useMemo(
-    () => clusterApiUrl(WalletAdapterNetwork.Devnet),
+    () => clusterApiUrl(WalletAdapterNetwork.Mainnet),
     []
   );
 
