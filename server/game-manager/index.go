@@ -53,11 +53,11 @@ var once sync.Once
 
 func InitiateInstance(ctx context.Context, wg sync.WaitGroup) {
 	once.Do(func() {
-		// client := redis.NewClient(&redis.Options{
-		// 	Addr:     os.Getenv("REDIS_ADDRESS"),
-		// 	Password: os.Getenv("REDIS_PASSWORD"),
-		// 	DB:       0,
-		// })
+		client := redis.NewClient(&redis.Options{
+			Addr:     os.Getenv("REDIS_ADDRESS"),
+			Password: os.Getenv("REDIS_PASSWORD"),
+			DB:       0,
+		})
 
 		opt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
 		if err != nil {
@@ -65,13 +65,13 @@ func InitiateInstance(ctx context.Context, wg sync.WaitGroup) {
 			return
 		}
 
-		client := redis.NewClient(opt)
-		dbQueue := Queue{
-			client:        client,
-			queueName:     "mari-arena-db-queue",
-			processingKey: "mari-arena-db-queue:processing",
-			timeout:       10 * time.Second,
-		}
+		// client := redis.NewClient(opt)
+		// dbQueue := Queue{
+		// 	client:        client,
+		// 	queueName:     "mari-arena-db-queue",
+		// 	processingKey: "mari-arena-db-queue:processing",
+		// 	timeout:       10 * time.Second,
+		// }
 		gameQueue := Queue{
 			client:        client,
 			queueName:     "mari-arena-queue",
