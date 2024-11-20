@@ -20,7 +20,6 @@ type Queue struct {
 }
 
 func (q *Queue) Enqueue(ctx context.Context, item map[string]interface{}) error {
-
 	jsonData, err := json.Marshal(item)
 	if err != nil {
 		return err
@@ -68,58 +67,63 @@ func (q *Queue) RetryFailedTasks(ctx context.Context) error {
 
 func (q *Queue) ProcessQueue(ctx context.Context) {
 	for {
-		item, err := q.Dequeue(ctx)
-		if err != nil {
-			if err == io.EOF {
-				time.Sleep(2 * time.Second)
-				continue
-			} else {
-				log.Printf("Error dequeuing task: %v", err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
-		} else if item == "" {
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		var parsedData map[string]interface{}
-		err = Parse(item, &parsedData)
-		if err != nil {
-			fmt.Printf("Error in Parse: %v\n", err)
+		select {
+		case <-ctx.Done():
+			log.Println("Stopping redis queue")
 			return
-		}
+		default:
+			item, err := q.Dequeue(ctx)
+			if err != nil {
+				if err == io.EOF {
+					time.Sleep(2 * time.Second)
+					continue
+				} else {
+					log.Printf("Error dequeuing task: %v", err)
+					time.Sleep(2 * time.Second)
+					continue
+				}
+			} else if item == "" {
+				time.Sleep(2 * time.Second)
+				continue
+			}
 
-		taskType := parsedData["type"].(string)
-		taskPayload := parsedData["data"].(map[string]interface{})
-		log.Printf("Processing ====== %s", taskType)
-		switch taskType {
-		case "create-game":
-			err = CreateGame(ctx, taskPayload)
-		case "add-participant":
-			err = AddParticipant(ctx, taskPayload)
-		case "start-game":
-			err = StartGame(ctx, taskPayload)
-		case "collect-entry":
-			err = CollectEntry(ctx, taskPayload)
-		case "join-game":
-			JoinGame(ctx, taskPayload)
-		case "end-game":
-			err = EndGame(ctx, taskPayload)
-		case "update-balance":
-			err = UpdateBalance(ctx, taskPayload)
-		case "delete-user":
-			GetInstance().DeleteUser(taskPayload["userId"].(string))
-		}
+			var parsedData map[string]interface{}
+			err = Parse(item, &parsedData)
+			if err != nil {
+				fmt.Printf("Error in Parse: %v\n", err)
+				return
+			}
 
-		if err != nil {
-			log.Printf("Failed to retry tasks: %s", err.Error())
-		} else {
-			if err := q.Acknowledge(ctx, item); err != nil {
-				log.Fatalf("Failed to acknowledge task: %v", err)
+			taskType := parsedData["type"].(string)
+			taskPayload := parsedData["data"].(map[string]interface{})
+			log.Printf("Processing ====== %s", taskType)
+			switch taskType {
+			case "create-game":
+				err = CreateGame(ctx, taskPayload)
+			case "add-participant":
+				err = AddParticipant(ctx, taskPayload)
+			case "start-game":
+				err = StartGame(ctx, taskPayload)
+			case "collect-entry":
+				err = CollectEntry(ctx, taskPayload)
+			case "join-game":
+				JoinGame(ctx, taskPayload)
+			case "end-game":
+				err = EndGame(ctx, taskPayload)
+			case "update-balance":
+				err = UpdateBalance(ctx, taskPayload)
+			case "delete-user":
+				GetInstance().DeleteUser(taskPayload["userId"].(string))
+			}
+
+			if err != nil {
+				log.Printf("Failed to retry tasks: %s", err.Error())
+			} else {
+				if err := q.Acknowledge(ctx, item); err != nil {
+					log.Fatalf("Failed to acknowledge task: %v", err)
+				}
 			}
 		}
-
 	}
 }
 

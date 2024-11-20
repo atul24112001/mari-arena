@@ -267,6 +267,7 @@ export const AuthContextProvider = ({ children }: PropsWithChildren) => {
           setUser(data.data);
           setToken(data.token);
           localStorage.setItem("token", data.token);
+          togglePasswordDialog();
         },
         onError: (e) => {
           if (e instanceof AxiosError) {

@@ -14,10 +14,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 )
 
 var upgrader = websocket.Upgrader{
@@ -38,22 +43,23 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	for {
-		n, message, err := conn.ReadMessage()
+		_, message, err := conn.ReadMessage()
+		gameInstance := gameManager.GetInstance()
 		if err != nil {
-			targetUserId, exist := gameManager.GetInstance().UserConnectionMap[conn]
+			targetUserId, exist := gameInstance.UserConnectionMap[conn]
 			if exist {
-				delete(gameManager.GetInstance().UserConnectionMap, conn)
-				gameManager.GetInstance().GameQueue.Enqueue(context.Background(), map[string]interface{}{
-					"type": "delete-user",
-					"data": map[string]string{
-						"userId": targetUserId,
-					},
-				})
+				delete(gameInstance.UserConnectionMap, conn)
+				gameInstance.DeleteUser(targetUserId)
+				// gameInstance.GameQueue.Enqueue(gameInstance.Context, map[string]interface{}{
+				// 	"type": "delete-user",
+				// 	"data": map[string]string{
+				// 		"userId": targetUserId,
+				// 	},
+				// })
 			}
 			break
 		}
 
-		log.Println(n)
 		m := make(map[string]interface{})
 		err = json.Unmarshal(message, &m)
 		if err != nil {
@@ -71,10 +77,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Println("messageType", messageType)
 		switch messageType {
 		case "add-user":
-			gameManager.GetInstance().AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
+			gameInstance.AddUser(messageData["userId"].(string), messageData["publicKey"].(string), conn)
 		case "join-random-game":
 			if lib.UnderMaintenance {
-				targetUser, exist := gameManager.GetInstance().GetUser(messageData["userId"].(string))
+				targetUser, exist := gameInstance.GetUser(messageData["userId"].(string))
 				if exist {
 					targetUser.SendMessage("error", map[string]interface{}{
 						"message": "We are under maintenance please try after some time",
@@ -82,15 +88,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				log.Println("joining game", messageData["userId"].(string))
-				gameManager.GetInstance().GameQueue.Enqueue(context.Background(), map[string]interface{}{
+				gameInstance.GameQueue.Enqueue(gameInstance.Context, map[string]interface{}{
 					"type": "join-game",
 					"data": messageData,
 				})
 			}
 		case "update-board":
-			gameManager.GetInstance().UpdateBoard(messageData["gameId"].(string), messageData["userId"].(string))
+			gameInstance.RedisClient.Publish(gameInstance.Context, messageData["gameId"].(string), string(message))
 		case "game-over":
-			gameManager.GetInstance().GameOver(messageData["gameId"].(string), messageData["userId"].(string))
+			messageData["pid"] = os.Getpid()
+			payload, _ := json.Marshal(map[string]interface{}{
+				"type": "game-over",
+				"data": messageData,
+			})
+			gameInstance.RedisClient.Publish(gameInstance.Context, messageData["gameId"].(string), string(payload))
 		default:
 			log.Println("Unknown message type:", messageType)
 		}
@@ -99,14 +110,31 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// runtime.GOMAXPROCS(4)
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
+	var wg sync.WaitGroup
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	gameManager.InitiateInstance(ctx, wg)
+
+	defer gameManager.GetInstance().RedisClient.Close()
+
 	lib.ConnectDB()
 	r := mux.NewRouter()
 
 	r.HandleFunc("/api/transaction", transaction.Handler)
 	r.HandleFunc("/api/game-types", gametype.Handler)
+	r.HandleFunc("/pid", func(w http.ResponseWriter, r *http.Request) {
+		log.Println(os.Getppid())
+	})
 
 	r.HandleFunc("/ws", handleWebSocket)
+
 	api := r.PathPrefix("/api").Subrouter()
 	userRouter := api.PathPrefix("/user").Subrouter()
 	authRouter := api.PathPrefix("/auth").Subrouter()
@@ -124,10 +152,41 @@ func main() {
 
 	loggingHandler := handlers.LoggingHandler(os.Stdout, corsHandler)
 
-	fmt.Println("WebSocket server listening on :8080")
-	if err := http.ListenAndServe(":8080", loggingHandler); err != nil {
-		log.Fatal("ListenAndServe error:", err)
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: loggingHandler,
 	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		gameManager.GetInstance().SubscribeGame(ctx, "mari-arena-global")
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fmt.Println("WebSocket server listening on :8080")
+		if err := server.ListenAndServe(); err != nil {
+			log.Fatal("ListenAndServe error:", err)
+		}
+	}()
+
+	<-stop
+	fmt.Println("Shutting down services...")
+
+	cancel()
+
+	serverCtx, serverCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer serverCancel()
+	if err := server.Shutdown(serverCtx); err != nil {
+		fmt.Printf("Server forced to shutdown: %v\n", err)
+	} else {
+		fmt.Println("Server gracefully stopped")
+	}
+
+	wg.Wait()
+	fmt.Println("All background tasks completed. Exiting.")
 }
 
 // nodemon --exec go run main.go --signal SIGTERM

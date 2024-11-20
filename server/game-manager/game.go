@@ -7,6 +7,7 @@ type Score struct {
 
 type Game struct {
 	Id               string
+	GameTypeId       string
 	MaxUserCount     int
 	CurrentUserCount int
 	WinnerPrice      int

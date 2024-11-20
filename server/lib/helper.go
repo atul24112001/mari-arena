@@ -148,3 +148,11 @@ func GenerateToken(id string) (string, error) {
 	}
 	return tokenString, nil
 }
+
+func Stringify(data interface{}) string {
+	jsonString, err := json.Marshal(data)
+	if err != nil {
+		log.Fatal("Something went wrong while stringify ", data)
+	}
+	return string(jsonString)
+}
