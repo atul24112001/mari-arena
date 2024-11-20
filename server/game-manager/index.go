@@ -59,19 +59,19 @@ func InitiateInstance(ctx context.Context, wg sync.WaitGroup) {
 			DB:       0,
 		})
 
-		opt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
-		if err != nil {
-			log.Fatal("Error parsing redis url: ", err.Error())
-			return
-		}
+		// opt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
+		// if err != nil {
+		// 	log.Fatal("Error parsing redis url: ", err.Error())
+		// 	return
+		// }
 
 		// client := redis.NewClient(opt)
-		// dbQueue := Queue{
-		// 	client:        client,
-		// 	queueName:     "mari-arena-db-queue",
-		// 	processingKey: "mari-arena-db-queue:processing",
-		// 	timeout:       10 * time.Second,
-		// }
+		dbQueue := Queue{
+			client:        client,
+			queueName:     "mari-arena-db-queue",
+			processingKey: "mari-arena-db-queue:processing",
+			timeout:       10 * time.Second,
+		}
 		gameQueue := Queue{
 			client:        client,
 			queueName:     "mari-arena-queue",
