@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type LoginRequestBody struct {
@@ -38,6 +40,10 @@ func login(w http.ResponseWriter, r *http.Request) {
 	getUserDetailsQuery := `SELECT id, name, email, "inrBalance", "solanaBalance", password  FROM public.users WHERE email = $1`
 	err = lib.Pool.QueryRow(r.Context(), getUserDetailsQuery, body.Identifier).Scan(&user.Id, &user.Name, &user.Email, &user.INRBalance, &user.SolanaBalance, &passwordHash)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			lib.ErrorJson(w, http.StatusBadRequest, "User not found with this public key", "")
+			return
+		}
 		lib.ErrorJson(w, http.StatusBadRequest, err.Error(), "")
 		return
 	}
